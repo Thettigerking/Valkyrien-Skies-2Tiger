@@ -7,6 +7,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.Mixins;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
+import org.spongepowered.asm.service.MixinService;
+import org.valkyrienskies.mod.compat.LoadedMods;
 import org.valkyrienskies.mod.compat.VSRenderer;
 
 /**
@@ -58,6 +60,17 @@ public class ValkyrienCommonMixinConfigPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(final String s, final String mixinClassName) {
         final VSRenderer renderer = getVSRenderer();
+
+        if (mixinClassName.contains("org.valkyrienskies.mod.mixin.mod_compat.immersive_portals")) {
+            return LoadedMods.getImmersivePortals(); // Only load this mixin if immersive portals is present
+        }
+        if (
+            mixinClassName.equals("org.valkyrienskies.mod.mixin.client.world.MixinClientChunkCache") ||
+                mixinClassName.equals("org.valkyrienskies.mod.mixin.mod_compat.vanilla_renderer.MixinViewAreaVanilla")
+        ) {
+            return !LoadedMods.getImmersivePortals(); // Only load this if immersive portals is NOT present
+        }
+
         if (mixinClassName.contains("org.valkyrienskies.mod.mixin.mod_compat.sodium")) {
             return renderer == VSRenderer.SODIUM;
         }

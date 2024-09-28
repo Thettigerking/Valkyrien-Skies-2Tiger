@@ -143,6 +143,7 @@ subprojects {
                     includeGroup("dev.ftb.mods")
                 }
             }
+            maven { url = "https://jitpack.io"}
         }
         maven {
             name = "Valkyrien Skies Internal"

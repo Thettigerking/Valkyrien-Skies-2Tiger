@@ -86,6 +86,10 @@ dependencies {
 
     // Dynmap
     modCompileOnly("maven.modrinth:dynmap:${dynmap_version}")
+
+    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core:${immptl_version}")
+    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${immptl_version}")
+    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:build:${immptl_version}")
 }
 
 // Copy the VS common access widener to the generated resources folder
