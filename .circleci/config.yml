@@ -271,11 +271,11 @@ workflows:
           context:
             - valkyrien_maven
 
-#      - fabric_server_test:
-#          requires:
-#            - gradle_build
-#          context:
-#            - valkyrien_maven
+      - fabric_server_test:
+          requires:
+            - gradle_build
+          context:
+            - valkyrien_maven
 
       - forge_server_test:
           requires:
