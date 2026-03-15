@@ -25,9 +25,11 @@ import net.minecraftforge.fml.common.Mod
 import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus
 import net.minecraftforge.fml.config.ModConfig
 import net.minecraftforge.fml.event.config.ModConfigEvent
+import net.minecraftforge.event.RegisterGameTestsEvent
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent
 import net.minecraftforge.fml.loading.FMLEnvironment
 import net.minecraftforge.registries.DeferredRegister
+import org.valkyrienskies.mod.forge.gametest.VSGameTests
 import net.minecraftforge.registries.ForgeRegistries
 import net.minecraftforge.registries.RegistryObject
 import org.valkyrienskies.mod.client.EmptyRenderer
@@ -149,6 +151,8 @@ class ValkyrienSkiesModForge {
         forgeBus.addListener(::registerCommands)
         forgeBus.addListener(::tagsUpdated)
         forgeBus.addListener(::registerResourceManagers)
+
+        modBus.addListener(::registerGameTests)
 
         TEST_CHAIR_REGISTRY = registerBlockAndItem("test_chair") { TestChairBlock }
         TEST_HINGE_REGISTRY = registerBlockAndItem("test_hinge") { TestHingeBlock }
@@ -327,6 +331,10 @@ class ValkyrienSkiesModForge {
         if (event.commandSelection == ALL || event.commandSelection == INTEGRATED) {
             VSCommands.registerClientCommands(event.dispatcher)
         }
+    }
+
+    private fun registerGameTests(event: RegisterGameTestsEvent) {
+        event.register(VSGameTests::class.java)
     }
 
     private fun tagsUpdated(event: TagsUpdatedEvent) {

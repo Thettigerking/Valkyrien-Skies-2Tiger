@@ -44,6 +44,15 @@ loom {
     mixin {
         defaultRefmapName = "valkyrienskies-refmap.json"
     }
+
+    runs {
+        gameTestServer {
+            server()
+            name "Forge Game Test Server"
+            property "forge.enableGameTest", "true"
+            property "forge.gameTestServer", "true"
+        }
+    }
 }
 
 configurations {
