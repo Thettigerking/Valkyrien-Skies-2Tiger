@@ -22,7 +22,6 @@
     "feature.ai.goal.MixinMoveToTargetSink",
     "feature.ai.goal.MixinValidateNearbyPoi",
     "feature.ai.goal.bees.MixinBee",
-    "feature.ai.goal.bees.MixinEnterHiveGoal",
     "feature.ai.goal.bees.MixinGrowCropGoal",
     "feature.ai.goal.bees.MixinLocateHiveGoal",
     "feature.ai.goal.bees.MixinPollinateGoal",

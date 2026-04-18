@@ -9,6 +9,7 @@
     "compat.connectiblechains.MixinChainable",
     "compat.connectiblechains.MixinChainCollisionEntity",
     "entity.MixinContainerEntity",
+    "feature.ai.goal.bees.MixinEnterHiveGoal",
     "feature.explosions.ClipContextMixin",
     "feature.fix_tp_ships_cross_dimension.MixinLevelChunk",
     "feature.shipyard_entities.MixinPersistentEntitySectionManager",

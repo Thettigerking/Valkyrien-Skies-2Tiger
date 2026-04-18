@@ -55,6 +55,7 @@
     "compat.thermalexpansion.MixinTileCoFH",
     "compat.twilightforest.ChunkGeneratorTwilightMixin",
     "entity.MixinContainerEntity",
+    "feature.ai.goal.bees.MixinEnterHiveGoal",
     "feature.fix_tp_ships_cross_dimension.MixinLevelChunk",
     "feature.forge_interact.MixinIForgePlayer",
     "feature.shipyard_entities.MixinPersistentEntitySectionManager",

@@ -146,6 +146,10 @@ subprojects {
             }
             // Jitpack is last because it's slow and should only be used as fallback.
             maven { url = "https://jitpack.io" }
+            maven {
+                name = "Fuzs Mod Resources"
+                url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/")
+            }
         }
         maven {
             name = "Valkyrien Skies Internal"
