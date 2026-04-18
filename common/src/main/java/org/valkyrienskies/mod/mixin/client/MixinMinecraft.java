@@ -126,7 +126,7 @@ public abstract class MixinMinecraft
             final var networkingAddress = remoteAddress != null && remoteAddress.toString().startsWith("local:")
                 ? localAddress
                 : remoteAddress;
-            if (vs$lastNetworkingAddressLog + 5000L < System.currentTimeMillis()) {
+            if (false && vs$lastNetworkingAddressLog + 5000L < System.currentTimeMillis()) {
                 vs$lastNetworkingAddressLog = System.currentTimeMillis();
                 log.info(
                     "tickNetworking networkingAddress={} remoteAddress={} localAddress={}",
