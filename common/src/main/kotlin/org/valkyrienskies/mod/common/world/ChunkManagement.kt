@@ -84,22 +84,27 @@ object ChunkManagement {
             )
             val chunkPos = ChunkPos(chunkUnwatchTask.chunkX, chunkUnwatchTask.chunkZ)
 
+            // Whether this unwatch corresponds to a ship that was actually deleted
+            // (vs. the player just moving out of range on a still-alive ship).
+            var shipDeleteUnwatch = false
+
             if (chunkUnwatchTask.shouldUnload) {
                 val level = server.getLevelFromDimensionId(chunkUnwatchTask.dimensionId)!!
                 if (VS2ChunkAllocator.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
                     // Only release the SHIP_CHUNK ticket if the ship that owns this chunk
                     // is actually gone. If the ship still exists (just no player watcher),
-                    // keep the chunk loaded — otherwise scheduled ticks, block entities, and
-                    // fluid flow on unattended ships all silently stop working (redstone
-                    // clocks halt, hoppers freeze, furnaces don't smelt).
-                    //
-                    // Check via the task's own ship field (rather than re-looking up via
-                    // allShips.getByChunkPos, which has already stopped answering by the
-                    // time this task fires). If the task's ship is no longer registered
-                    // in allShips, it's been deleted — drop the ticket. Otherwise keep it.
+                    // keep the chunk loaded — otherwise scheduled ticks, block entities,
+                    // and fluid flow on unattended ships all silently stop working.
                     val taskShip = chunkUnwatchTask.ship
                     val shipStillAlive = shipWorld.allShips.getById(taskShip.id) != null
                     if (!shipStillAlive) {
+                        shipDeleteUnwatch = true
+                        // Mark the chunk as clean so MC's scheduleUnload doesn't even
+                        // try to serialize it. Paired with MixinChunkMapScheduleUnload
+                        // which short-circuits the whole async unload chain for
+                        // shipyard chunks — this is the belt, that's the suspenders.
+                        val chunk = level.chunkSource.getChunkNow(chunkPos.x, chunkPos.z)
+                        chunk?.isUnsaved = false
                         level.chunkSource.removeRegionTicket(VSTicketType.SHIP_CHUNK, chunkPos, 0, chunkPos)
                     }
                 } else {
@@ -107,11 +112,17 @@ object ChunkManagement {
                 }
             }
 
-            for (player in chunkUnwatchTask.playersNeedUnwatching) {
-                if (player !is MinecraftPlayer) continue
-                val serverPlayer = player.mcPlayer as ServerPlayer
-                (server.getLevelFromDimensionId(chunkUnwatchTask.dimensionId)!!.chunkSource.chunkMap as ChunkMapAccessor)
-                    .callDropChunk(serverPlayer, chunkPos)
+            // Skip the per-player dropChunk pass for ship-delete unwatches: shipyard
+            // chunks never go through PlayerChunkSender, so dropChunk is a no-op for
+            // tracking state. Clients already learn the ship went away via the
+            // vs-core delete sync.
+            if (!shipDeleteUnwatch) {
+                for (player in chunkUnwatchTask.playersNeedUnwatching) {
+                    if (player !is MinecraftPlayer) continue
+                    val serverPlayer = player.mcPlayer as ServerPlayer
+                    (server.getLevelFromDimensionId(chunkUnwatchTask.dimensionId)!!.chunkSource.chunkMap as ChunkMapAccessor)
+                        .callDropChunk(serverPlayer, chunkPos)
+                }
             }
         }
 

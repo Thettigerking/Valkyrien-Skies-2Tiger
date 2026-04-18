@@ -22,6 +22,12 @@ configurations {
 
 loom {
     accessWidenerPath = project(":common").loom.accessWidenerPath
+
+    mods {
+        "valkyrienskies" {
+            sourceSet sourceSets.main
+        }
+    }
 }
 
 dependencies {

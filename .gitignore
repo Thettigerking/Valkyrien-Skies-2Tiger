@@ -47,3 +47,4 @@ forge*changelog.txt
 /fabric/src/generated/
 /.architectury-transformer/debug.log
 /.claude/settings.local.json
+.claude/

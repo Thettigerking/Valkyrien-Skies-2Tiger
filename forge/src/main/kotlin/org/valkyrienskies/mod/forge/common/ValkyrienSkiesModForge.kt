@@ -85,14 +85,14 @@ object ValkyrienSkiesModForge {
         // the flag is ignored. Synchronous physics means postTickGame runs
         // physicsTicksPerGameTick (default 3) steps inline per server tick — ships
         // actually move each tick instead of waiting on a wall-clock-scheduled physics
-        // thread, which matters for responsiveness and for any workload that ticks the
-        // server faster than 20 Hz.
+        // thread. Critical for gametests (which run server ticks faster than 20 Hz) and
+        // for general responsiveness.
         //
         // Also zero out shipLoadFreezeSeconds. vs-core defaults this to 5.0s, and
         // ShipObjectServerWorld re-arms the freeze on every DenseVoxelShapeUpdate that
-        // arrives for a ship. Under heavy voxel streaming these updates keep coming, so
-        // the freeze never expires and ship positions get clamped to their spawn pose by
-        // effectiveKinematicTarget in VSGamePipelineStage.
+        // arrives for a ship. In gametest environments (and under heavy streaming)
+        // these updates keep coming, so the freeze never expires and ship positions get
+        // clamped to their spawn pose by effectiveKinematicTarget in VSGamePipelineStage.
         try {
             val pt = org.valkyrienskies.core.impl.config.VSCoreConfig.SERVER.pt
             pt.synchronizePhysics = true
@@ -282,7 +282,6 @@ object ValkyrienSkiesModForge {
     private fun tagsUpdated(event: TagsUpdatedEvent) {
         VSGameEvents.tagsAreLoaded.emit(Unit)
     }
-
     private fun loadComplete(event: FMLLoadCompleteEvent) {
         ValkyrienSkiesMod.TEST_CHAIR = TEST_CHAIR_REGISTRY.get()
         ValkyrienSkiesMod.TEST_HINGE = TEST_HINGE_REGISTRY.get()

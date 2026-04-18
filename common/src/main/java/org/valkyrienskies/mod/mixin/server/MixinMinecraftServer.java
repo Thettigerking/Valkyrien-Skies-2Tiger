@@ -34,6 +34,7 @@ import org.spongepowered.asm.mixin.injection.At.Shift;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.valkyrienskies.core.api.util.AerodynamicUtils;
+import org.valkyrienskies.core.api.ships.LoadedServerShip;
 import org.valkyrienskies.core.api.ships.properties.IShipActiveChunksSet;
 import org.valkyrienskies.core.internal.VsiGameServer;
 import org.valkyrienskies.core.internal.world.VsiPlayer;
@@ -164,7 +165,6 @@ public abstract class MixinMinecraftServer implements IShipObjectWorldServerProv
     private void preTick(final CallbackInfo ci) {
         final Set<VsiPlayer> vsPlayers = playerList.getPlayers().stream()
             .map(VSGameUtilsKt::getPlayerWrapper).collect(Collectors.toSet());
-
         shipWorld.setPlayers(vsPlayers);
 
         // region Tell the VS world to load new levels, and unload deleted ones
@@ -368,9 +368,42 @@ public abstract class MixinMinecraftServer implements IShipObjectWorldServerProv
             vsPipeline.setDeleteResources(true);
             vsPipeline.setArePhysicsRunning(true);
         }
+
+        // Remove all ship chunk tickets before Minecraft's shutdown loop runs; otherwise
+        // the while(hasWork()) drain in stopServer() hangs forever because shipyard
+        // ChunkHolders stay in updatingChunkMap and are never scheduled for dropping.
+        // Was 1.20.1's primary fix for the "100+ ships, closing world hangs" case in
+        // commit 076dd115afcf920a9db472527d8a41786b465863; MixinChunkMapClose is the
+        // defense-in-depth safety net that assumes this ran.
+        if (shipWorld != null) {
+            for (final LoadedServerShip ship : shipWorld.getLoadedShips()) {
+                final ServerLevel level = dimensionToLevelMap.get(ship.getChunkClaimDimension());
+                if (level != null) {
+                    ship.getActiveChunksSet().forEach((final int x, final int z) -> {
+                        final ChunkPos cp = new ChunkPos(x, z);
+                        // Remove the SHIP_CHUNK ticket (radius-0, level 33)
+                        level.getChunkSource().removeRegionTicket(
+                            org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp);
+                        // Also remove any legacy FORCED tickets in case they exist
+                        level.getChunkSource().updateChunkForced(cp, false);
+                    });
+                }
+            }
+        }
+    }
+
+    // Only clear these after stopping the server so preStopServer and the
+    // stopServer drain loop can still reach shipWorld / dimensionToLevelMap.
+    @Inject(
+        method = "stopServer",
+        at = @At("RETURN")
+    )
+    private void postStopServer(final CallbackInfo ci) {
         dimensionToLevelMap.clear();
-        shipWorld.setGameServer(null);
-        shipWorld = null;
+        if (shipWorld != null) {
+            shipWorld.setGameServer(null);
+            shipWorld = null;
+        }
     }
 
     @NotNull

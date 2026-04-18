@@ -115,6 +115,7 @@
     "server.world.MixinChunkMapShipyard",
     "server.world.MixinChunkMap$TrackedEntity",
     "server.world.MixinChunkMapClose",
+    "server.world.MixinChunkMapScheduleUnload",
     "server.world.MixinServerLevel",
     "world.chunk.MixinLevelChunk",
     "world.chunk.MixinServerChunkCache",

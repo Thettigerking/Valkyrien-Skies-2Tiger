@@ -62,6 +62,8 @@
     "world.level.block.FireMixin"
   ],
   "client": [
+    "compat.connectiblechains.client.MixinChainKnotEntityRenderer",
+    "compat.create.client.MixinChainConveyorBlockEntity",
     "compat.create.client.MixinContraptionHandlerClient",
     "compat.create.client.MixinTrackBlockOutline",
     "neoforged.neoforge.client.MixinClientHooks",
