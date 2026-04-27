@@ -102,6 +102,7 @@
     "mod_compat.echochest.MixinVibrationSystemAccessor",
     "mod_compat.ftb_chunks.MixinClaimedChunkManagerImpl",
     "mod_compat.moonlight.MixinFakeServerLevel",
+    "mod_compat.sableCompanion.MixinDefaultSableCompanion",
     "mod_compat.tis3d.MixinInfraredPacketEntity",
     "server.MinecraftServerAccessor",
     "server.MixinMinecraftServer",
