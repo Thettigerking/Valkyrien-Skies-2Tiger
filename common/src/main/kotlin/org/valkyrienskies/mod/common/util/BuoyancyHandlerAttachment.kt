@@ -8,7 +8,6 @@ import org.valkyrienskies.core.api.ships.ShipPhysicsListener
 import org.valkyrienskies.core.api.world.PhysLevel
 import org.valkyrienskies.mod.common.config.VSGameConfig
 
-//todo: maybe make this more complex in the future, but the beyond oxygen method is more than acceptable for now
 class BuoyancyHandlerAttachment : ShipPhysicsListener {
     val buoyancyData = BuoyancyData()
 

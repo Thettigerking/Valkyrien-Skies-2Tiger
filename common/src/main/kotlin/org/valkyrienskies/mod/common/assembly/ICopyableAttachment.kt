@@ -7,9 +7,8 @@ import org.valkyrienskies.core.api.ships.LoadedServerShip
 import org.valkyrienskies.core.api.ships.ServerShip
 import org.valkyrienskies.core.api.ships.properties.ShipId
 import java.util.function.Supplier
-//TODO refine docs
-//TODO finish
-//TODO move to .api?
+
+//TODO refine docs, finish and move to .api?
 /**
  * Should be saved before any ship blocks is saved
  * Should be loaded after all ships were created and all blocks were placed and loaded

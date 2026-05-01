@@ -58,7 +58,7 @@ object VSCommands {
 
 
     fun registerClientCommands(dispatcher: CommandDispatcher<CommandSourceStack>) {
-        // TODO implement client commands
+        // Register client commands if needed
     }
 }
 

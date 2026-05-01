@@ -108,7 +108,7 @@ open class ShipArgumentParser(private val source: SharedSuggestionProvider?, pri
         else -> false
     }
 
-    // TODO keep a dynamic list of options...
+    // Should we keep a dynamic list of options instead?
     private fun suggestOptions(textSoFar: String? = null) = suggest { builder, source ->
         if (textSoFar == null) {
             builder.suggest("slug=")

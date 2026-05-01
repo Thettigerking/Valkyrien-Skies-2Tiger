@@ -11,9 +11,7 @@ import org.joml.Vector3dc
 import org.valkyrienskies.core.api.ships.ServerShip
 import java.util.function.Supplier
 
-//TODO refine docs
-//TODO finish
-//TODO move to .api?
+//TODO refine docs, finish and move to .api?
 /**
  * Should be inherited by block, not block entity
  */

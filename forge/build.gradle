@@ -106,7 +106,6 @@ dependencies {
     modCompileOnly("maven.modrinth:oc2r:${oc2r_version}")
 
     // EMF compat
-    //todo: fix
     modCompileOnly("maven.modrinth:entity-model-features:3.0.7-forge-1.20.1")
     modCompileOnly("maven.modrinth:entitytexturefeatures:7.0.6-forge-1.20.1")
 

@@ -14,7 +14,6 @@ import org.valkyrienskies.mod.compat.CreateCompat
 import java.time.Duration
 import kotlin.text.RegexOption.IGNORE_CASE
 
-// TODO if needed initialize the handler with certain settings
 object VSEntityManager {
     private val entityHandlersNamed = HashMap<ResourceLocation, VSEntityHandler>()
     private val namedEntityHandlers = HashMap<VSEntityHandler, ResourceLocation>()

@@ -33,4 +33,4 @@ data class ClientShipSettings(
 )
 
 val ClientShip.settings: ClientShipSettings
-    get() = ClientShipSettings() //TODO have a way to store/pull from server a per ship client preference
+    get() = ClientShipSettings()

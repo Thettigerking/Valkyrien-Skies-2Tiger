@@ -370,7 +370,8 @@ object MassDatapackResolver : BlockStateInfoProvider {
             if (blockState.isAir) {
                 vsBlockState = vsCore.blockTypes.airState
             } else {
-                vsBlockState = if (blockState.liquid()) { //TODO: This is also deprecated. I could check if the blockState is wet and not waterlogged but couldn't be sure if that's what this is for.
+                //TODO: This is also deprecated. I could check if the blockState is wet and not waterlogged but couldn't be sure if that's what this is for.
+                vsBlockState = if (blockState.liquid()) {
                     VsiBlockState(null, getFluidState(blockState.fluidState, map[BuiltInRegistries.BLOCK.getKey(blockState.block)], true))
                 } else {
                     val voxelShape: VoxelShape
