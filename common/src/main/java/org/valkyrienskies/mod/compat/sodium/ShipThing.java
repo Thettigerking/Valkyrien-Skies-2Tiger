@@ -43,6 +43,11 @@ public class ShipThing extends ChunkShaderInterface {
     // another ship's surface (and the same ship's own concave geometry).
     private final GlUniformInt uniformShipOccluders;
     private final GlUniformInt uniformShipOccluderCount;
+    // Per-frame index of the ship currently being rendered. The ship FSH
+    // compares each occluder voxel's stored index against this and skips
+    // matches — same-ship AO is already baked into v_Color.a, so counting
+    // it again would double-darken self-shadows.
+    private final GlUniformInt uniformCurrentShipIndex;
 
     public ShipThing(ShaderBindingContext context, ChunkShaderOptions options, int features) {
         super(context, options);
@@ -75,6 +80,8 @@ public class ShipThing extends ChunkShaderInterface {
                 ? context.bindUniform("u_VsShipOccluders", GlUniformInt::new) : null;
         this.uniformShipOccluderCount = shipOnShip
                 ? context.bindUniform("u_VsShipOccluderCount", GlUniformInt::new) : null;
+        this.uniformCurrentShipIndex = shipOnShip
+                ? context.bindUniform("u_VsCurrentShipIndex", GlUniformInt::new) : null;
     }
 
     public void setTransformMatrix(Matrix4fc matrix) {
@@ -113,5 +120,9 @@ public class ShipThing extends ChunkShaderInterface {
     public void setShipOccluders(int textureUnit, int count) {
         if (this.uniformShipOccluders != null) this.uniformShipOccluders.setInt(textureUnit);
         if (this.uniformShipOccluderCount != null) this.uniformShipOccluderCount.setInt(count);
+    }
+
+    public void setCurrentShipIndex(int idx) {
+        if (this.uniformCurrentShipIndex != null) this.uniformCurrentShipIndex.setInt(idx);
     }
 }

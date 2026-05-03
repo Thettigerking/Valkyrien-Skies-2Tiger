@@ -114,6 +114,16 @@ uniform vec4 ValkyrienAir_ShipAabbMax8;
 uniform vec4 ValkyrienAir_GridSize8;
 uniform mat4 ValkyrienAir_WorldToShip8;
 uniform sampler2D ValkyrienAir_Mask8;
+// World-section storage for per-fragment world-voxel scanning inside
+// ws_shipAo. Same layout the ship FSH uses (block_layer_opaque.fsh):
+// a flat solid-bit + light-byte buffer plus an index LUT. Exposed to
+// the world shader so the X-X corner rule can fold in world blocks
+// alongside ship voxels — without it, the SDF only sees ship voxels
+// (in u_VsShipOccluders) and vanilla baked AO from sodium handles
+// the world side, producing two separate shadow shapes that don't
+// combine cleanly. Bound from WorldThing.java.
+uniform usamplerBuffer u_VsLightSections;
+uniform usamplerBuffer u_VsLightLut;
 
 // Inverse-rotate v by quaternion q (i.e., apply q^-1 = (-q.xyz, q.w) to v).
 // Used to express world-frame offsets in the owning ship's local frame so
@@ -121,6 +131,63 @@ uniform sampler2D ValkyrienAir_Mask8;
 vec3 vs_quatRotateInv(vec4 q, vec3 v) {
     vec3 qNeg = -q.xyz;
     return v + 2.0 * cross(qNeg, cross(qNeg, v) + q.w * v);
+}
+
+// ===== Section-storage helpers (mirrored from ship FSH) =====
+// Layout: each section is [solid bits 732B][light bytes 5832B] = 6564B = 1641 ints.
+const uint VS_BLOCKS_PER_SECTION = 18u * 18u * 18u;
+const uint VS_LIGHT_SIZE_BYTES = VS_BLOCKS_PER_SECTION;
+const uint VS_SOLID_SIZE_BYTES = ((VS_BLOCKS_PER_SECTION + 31u) / 32u) * 4u;
+const uint VS_SOLID_START_INTS = 0u;
+const uint VS_SECTION_SIZE_INTS = (VS_SOLID_SIZE_BYTES + VS_LIGHT_SIZE_BYTES) / 4u;
+
+uint vs_indexLut(uint i) { return texelFetch(u_VsLightLut, int(i)).r; }
+uint vs_indexLight(uint i) { return texelFetch(u_VsLightSections, int(i)).r; }
+
+bool vs_nextLut(uint base, int coord, out uint next) {
+    int start = int(vs_indexLut(base));
+    uint size = vs_indexLut(base + 1u);
+    int idx = coord - start;
+    if (idx < 0 || idx >= int(size)) return true;
+    next = vs_indexLut(base + 2u + uint(idx));
+    return false;
+}
+
+bool vs_chunkCoordToSectionIndex(ivec3 sectionPos, out uint index) {
+    uint first;
+    if (vs_nextLut(0u, sectionPos.y, first) || first == 0u) return true;
+    uint second;
+    if (vs_nextLut(first, sectionPos.x, second) || second == 0u) return true;
+    uint sectionIndex;
+    if (vs_nextLut(second, sectionPos.z, sectionIndex) || sectionIndex == 0u) return true;
+    index = sectionIndex - 1u;
+    return false;
+}
+
+bool vs_isSolid(uint sectionOffset, uvec3 blockInSectionPos) {
+    uint bitOffset = blockInSectionPos.x + blockInSectionPos.z * 18u + blockInSectionPos.y * 18u * 18u;
+    uint uintOffset = bitOffset >> 5u;
+    uint bitInWordOffset = bitOffset & 31u;
+    uint word = vs_indexLight(sectionOffset + VS_SOLID_START_INTS + uintOffset);
+    return (word & (1u << bitInWordOffset)) != 0u;
+}
+
+uint vs_fetchSolid3x3x3(uint sectionOffset, ivec3 blockInSectionPos) {
+    uint ret = 0u;
+    #define VS_FETCH_SOLID(x, y, z, i) { \
+        bool flag = vs_isSolid(sectionOffset, uvec3(blockInSectionPos + ivec3(x, y, z))); \
+        ret |= uint(flag) << uint(i); \
+    }
+    VS_FETCH_SOLID(-1, -1, -1, 0)  VS_FETCH_SOLID(0, -1, -1, 1)  VS_FETCH_SOLID(1, -1, -1, 2)
+    VS_FETCH_SOLID(-1, -1,  0, 3)  VS_FETCH_SOLID(0, -1,  0, 4)  VS_FETCH_SOLID(1, -1,  0, 5)
+    VS_FETCH_SOLID(-1, -1,  1, 6)  VS_FETCH_SOLID(0, -1,  1, 7)  VS_FETCH_SOLID(1, -1,  1, 8)
+    VS_FETCH_SOLID(-1,  0, -1, 9)  VS_FETCH_SOLID(0,  0, -1,10)  VS_FETCH_SOLID(1,  0, -1,11)
+    VS_FETCH_SOLID(-1,  0,  0,12)  VS_FETCH_SOLID(0,  0,  0,13)  VS_FETCH_SOLID(1,  0,  0,14)
+    VS_FETCH_SOLID(-1,  0,  1,15)  VS_FETCH_SOLID(0,  0,  1,16)  VS_FETCH_SOLID(1,  0,  1,17)
+    VS_FETCH_SOLID(-1,  1, -1,18)  VS_FETCH_SOLID(0,  1, -1,19)  VS_FETCH_SOLID(1,  1, -1,20)
+    VS_FETCH_SOLID(-1,  1,  0,21)  VS_FETCH_SOLID(0,  1,  0,22)  VS_FETCH_SOLID(1,  1,  0,23)
+    VS_FETCH_SOLID(-1,  1,  1,24)  VS_FETCH_SOLID(0,  1,  1,25)  VS_FETCH_SOLID(1,  1,  1,26)
+    return ret;
 }
 
 out vec4 fragColor;
@@ -223,88 +290,166 @@ bool va_shouldDiscardFluid(vec3 worldPos) {
 float ws_shipAo(vec3 worldPosWorld, vec3 nf) {
     int n = min(u_VsShipOccluderCount, VS_OCCLUDER_LOOP_CAP);
 
-    float occlusionManhattan = 0.0;
-    float occlusionCorner = 0.0;
-    int cornerContributors = 0;
+    // Sharp polygonal AO from oct.py: per-voxel regular octagons
+    // (45° corner cuts) + per-voxel "puff" (inward corner expands
+    // toward this voxel's precomputed nearest neighbour) + per-voxel
+    // tongue (rectangle bridging to the NN). All merge work is
+    // PRECOMPUTED ON THE CPU (one NN per voxel, in
+    // VsShipOccluderList.computeNearestNeighbors), so each fragment
+    // does O(N) work with no top-K cap, no all-pairs loop, and no
+    // visible hops as the scene changes — every voxel contributes
+    // its merge bridge identically every frame.
+    //
+    // The NN is stored in the voxel's second texel (.xyz = NN world
+    // position, .w = NN distance; .w == FLT_MAX means "no NN within
+    // merge range"). For voxels with mutual NNs the bridge is
+    // rendered twice (same area, no visual harm); for asymmetric
+    // NNs (V's NN is W, but W's NN is M) only V renders the bridge,
+    // which still covers fully because we render the FULL gap
+    // tongue (both halves) per voxel.
+    const float K_OCT = 2.0;
+    const float HALF = 0.5 * K_OCT;            // 1.0 cell — octagon radius
+    const float A    = (sqrt(2.0) - 1.0) * 0.5 * K_OCT;  // ≈0.414
+    const float OCT_S = sqrt(2.0) - 1.0;
+    // dPair (centre-to-centre, in cells) thresholds. Octagons touch
+    // geometrically at dPair = 2*HALF = 2; we cap the merge transition
+    // at D_LOW + 0.5 so bridges and puff fade out by half a cell past
+    // touching. With this, two voxels whose centres are 3 cells apart
+    // (i.e. 2 empty blocks between them — "2 blocks away") have a full
+    // 1-cell gap between their octagons AND no bridge or puff active,
+    // so they render as completely disconnected.
+    const float D_LOW  = 2.0 * HALF;
+    const float D_HIGH = 2.0 * HALF + 0.5;
+
+    bool insidePoly = false;
+    float bestFn = 0.0;
+
+    // World tangent axes — used for the world-voxel pass below. Ship
+    // voxels run their polygon test in SHIP frame (rotated by the per-
+    // voxel quaternion) so a rotated hull's AO follows the ship's
+    // orientation instead of falling back to world-axis octagons.
+    vec3 absNfW = abs(nf);
+    vec3 uAxisW = absNfW.x > 0.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+    vec3 vAxisW = absNfW.z > 0.5 ? vec3(0, 1, 0) : vec3(0, 0, 1);
 
     for (int i = 0; i < n; i++) {
-        // Two texels per voxel: position (with payload in .w) and the
-        // owning ship's rotation quaternion. Apply q^-1 to the
-        // fragment-to-voxel offset and to the world face normal to get
-        // both into the voxel's ship-local frame; pick face-local U/V
-        // from the rotated normal so the SDF axes track the ship.
-        vec4 voxel = texelFetch(u_VsShipOccluders, i * 2);
-        vec4 q = texelFetch(u_VsShipOccluders, i * 2 + 1);
+        vec4 voxel = texelFetch(u_VsShipOccluders, i * 3);
+        vec4 nn    = texelFetch(u_VsShipOccluders, i * 3 + 1);
+        vec4 q     = texelFetch(u_VsShipOccluders, i * 3 + 2);
 
-        vec3 d_world = voxel.xyz - worldPosWorld;
-        vec3 d_ship = vs_quatRotateInv(q, d_world);
+        // Express fragment-to-voxel offset and surface normal in the
+        // voxel's owning ship frame. Inverse-rotation cancels the ship's
+        // world transform so the octagon test can run in axis-aligned
+        // ship coordinates — the same shape no matter how the ship is
+        // oriented in world space.
+        vec3 d_ship  = vs_quatRotateInv(q, voxel.xyz - worldPosWorld);
         vec3 nf_ship = vs_quatRotateInv(q, nf);
 
         float d_n = dot(d_ship, nf_ship);
         if (d_n <= 0.0 || d_n >= 1.5) continue;
         float fn = 1.0 - smoothstep(0.5, 1.5, d_n);
 
-        // Build face-local 2D axes (u, v) from the SHIP-frame face
-        // normal. For a Y-axis-rotated ship, an upward world face stays
-        // upward in ship frame too, so this picks ship-X / ship-Z;
-        // arbitrary rotations land on whatever pair of ship axes spans
-        // the face plane.
-        vec3 absNf = abs(nf_ship);
-        vec3 uAxis = absNf.x > 0.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
-        vec3 vAxis = absNf.z > 0.5 ? vec3(0, 1, 0) : vec3(0, 0, 1);
-        float du = dot(d_ship, uAxis);
-        float dv = dot(d_ship, vAxis);
+        // Orient the polygon basis along the NN direction (when the
+        // voxel has an in-range NN). uAxisShip then points exactly at
+        // the NN in the tangent plane, the asymmetric octagon's
+        // inward edge is perpendicular to the V→NN line, and two
+        // voxels with mutual NN have inward edges that face each
+        // other and meet in the middle — at any angle, not just at
+        // 0°/45°/90°/135°. Voxels without an NN fall back to ship-
+        // local x as the basis seed.
+        float t = 0.0;
+        vec3 uAxisShip = vec3(0.0);
+        if (nn.w < D_HIGH) {
+            vec3 sep_ship = vs_quatRotateInv(q, nn.xyz - voxel.xyz);
+            vec3 sep_plane = sep_ship - dot(sep_ship, nf_ship) * nf_ship;
+            float sepLen = length(sep_plane);
+            if (sepLen > 1e-3 && sepLen < D_HIGH) {
+                uAxisShip = sep_plane / sepLen;
+                t = clamp((D_HIGH - sepLen) / (D_HIGH - D_LOW), 0.0, 1.0);
+            }
+        }
+        if (dot(uAxisShip, uAxisShip) < 0.5) {
+            // No usable NN — fall back to ship-local x in tangent
+            // plane (Gram-Schmidt), then ship-local z if x degenerate.
+            vec3 uRef = vec3(1.0, 0.0, 0.0);
+            uAxisShip = uRef - dot(uRef, nf_ship) * nf_ship;
+            if (length(uAxisShip) < 0.1) {
+                uRef = vec3(0.0, 0.0, 1.0);
+                uAxisShip = uRef - dot(uRef, nf_ship) * nf_ship;
+            }
+            uAxisShip = normalize(uAxisShip);
+        }
+        vec3 vAxisShip = cross(nf_ship, uAxisShip);
+        float du = dot(d_ship, uAxisShip);
+        float dv = dot(d_ship, vAxisShip);
 
-        // Manhattan-distance SDF of the voxel's face-plane box. Reproduces
-        // vanilla MC's exact AO shape for an isolated occluder:
-        //   - inside the voxel's 1×1 footprint: full 1/3 contribution.
-        //   - axially adjacent cells: linear 1/3 → 0 ramp over 1 cell.
-        //   - diagonally adjacent cells: triangular falloff cut by the
-        //     45° Manhattan iso-line — vanilla's clean-triangle corner.
-        //
-        // halfSize 0.5: voxel is a unit cell on the face plane. tent
-        // reaches 0 at distance 1 cell from the box (matching vanilla's
-        // 1-cell AO reach). Voxel position is continuous, so the shape
-        // translates AND rotates with voxels — no per-cell
-        // decomposition, no world-grid anchoring.
-        float dU = abs(du) - 0.5;
-        float dV = abs(dv) - 0.5;
-        float manhattan = max(0.0, 1.0 - max(dU, 0.0) - max(dV, 0.0));
+        // Voxel bbox check (in NN-aligned basis).
+        if (abs(du) > HALF || abs(dv) > HALF) continue;
 
-        // Diagonal corner-cell extra for the "X X" case (two voxels
-        // with a 1-cell gap between them). Manhattan alone falls to 0
-        // along |Δu|+|Δv|=1, so each X contributes 0 at the gap-front
-        // fragment (dU=0.5, dV=0.5 from each), leaving a bright wedge
-        // where vanilla has continuous AO. The corner-extra term
-        // promotes the tent to bilinear (1−dU)(1−dV) inside the
-        // diagonal cell, filling the gap to 1/12 per voxel. Factors
-        // clamp at 0/1 so distant voxels contribute nothing.
-        //
-        // Gated below by `cornerContributors >= 2`: the corner cell is
-        // filled only when at least two voxels are themselves landing
-        // a cornerExtra contribution at this fragment — the X-X-gap
-        // signature. An isolated voxel triggers at most one corner
-        // contributor (its own diagonal cell) so the fill is dropped
-        // and the clean Manhattan octagon is preserved. Adjacent voxels
-        // (XX, no gap) also drop the fill: only the diagonal voxel of
-        // the pair has cornerExtra > 0; the axial voxel's contribution
-        // goes to Manhattan, doesn't bump cornerContributors, so the
-        // single corner contributor isn't enough to fill.
-        float fU = clamp(1.0 - dU, 0.0, 1.0);
-        float fV = clamp(1.0 - dV, 0.0, 1.0);
-        float cornerExtra = max(0.0, fU * fV - manhattan);
+        // Asymmetric octagon test. uAxis points toward NN, so a
+        // fragment INWARD from the voxel (between voxel and NN)
+        // has -du > 0. Inward side gets the puffed cut that
+        // interpolates from regular 45° (t=0) to fully flat at the
+        // bbox edge (t=1); outward side stays as regular 45° cut.
+        // The whole shape (bbox, both cuts) lives in the same NN-
+        // aligned basis, so there's no basis-mismatch artifact and
+        // the inward edge actually points at the NN.
+        float halfH = (OCT_S + (1.0 - OCT_S) * t) * K_OCT * 0.5;
+        bool inside;
+        if (-du > 0.0) {
+            float du_in = -du;
+            float dvMax = HALF + max(0.0, du_in - A) * (halfH - HALF) / (HALF - A);
+            inside = abs(dv) <= dvMax;
+        } else {
+            inside = abs(du) + abs(dv) <= HALF + A;
+        }
 
-        occlusionManhattan += (1.0 / 3.0) * fn * manhattan;
-        float contribC = (1.0 / 3.0) * fn * cornerExtra;
-        occlusionCorner += contribC;
-        if (contribC > 0.0) {
-            cornerContributors++;
+        if (inside) {
+            insidePoly = true;
+            bestFn = max(bestFn, fn);
         }
     }
 
-    float occlusion = occlusionManhattan
-            + (cornerContributors >= 2 ? occlusionCorner : 0.0);
-    occlusion = clamp(occlusion, 0.0, 1.0);
+    // World voxels: regular octagon coverage only. The 3×3×3 scan
+    // around the fragment's block is done inline; for X-W cross
+    // bridges the regular-octagon union usually overlaps enough to
+    // hide the seam (world voxels are on a 1-cell grid so adjacent
+    // ones overlap their octagons heavily).
+    ivec3 blockPos = ivec3(floor(worldPosWorld));
+    uint wsSectionIndex;
+    if (bestFn > 0.0 && !vs_chunkCoordToSectionIndex(blockPos >> 4, wsSectionIndex)) {
+        uint wsSectionOffset = wsSectionIndex * VS_SECTION_SIZE_INTS;
+        ivec3 wsBlockInSection = (blockPos & 0xF) + 1;
+        uint solid27 = vs_fetchSolid3x3x3(wsSectionOffset, wsBlockInSection);
+        if (solid27 != 0u) {
+            vec3 fragBlockCenter = vec3(blockPos) + vec3(0.5);
+            int bit = 0;
+            for (int oy = -1; oy <= 1; oy++) {
+                for (int oz = -1; oz <= 1; oz++) {
+                    for (int ox = -1; ox <= 1; ox++) {
+                        if ((solid27 & (1u << uint(bit))) != 0u) {
+                            vec3 voxelCenter = fragBlockCenter + vec3(ox, oy, oz);
+                            vec3 d = voxelCenter - worldPosWorld;
+                            float d_n = dot(d, nf);
+                            if (d_n > 0.0 && d_n < 1.5) {
+                                float fn = 1.0 - smoothstep(0.5, 1.5, d_n);
+                                float du = dot(d, uAxisW);
+                                float dv = dot(d, vAxisW);
+                                if (abs(du) <= HALF && abs(dv) <= HALF
+                                        && abs(du) + abs(dv) <= HALF + A) {
+                                    insidePoly = true;
+                                    bestFn = max(bestFn, fn);
+                                }
+                            }
+                        }
+                        bit++;
+                    }
+                }
+            }
+        }
+    }
+
+    float occlusion = insidePoly ? (bestFn * (1.0 / 3.0)) : 0.0;
     return mix(0.2, 1.0, 1.0 - occlusion);
 }
 // Loop bound for the per-fragment emitter scan. Should match
@@ -367,15 +512,13 @@ void main() {
     // independently.
     diffuseColor.rgb *= v_Color.rgb * lightSample.rgb;
 
-    // Combined AO + shade. v_Color.a is PURE vanilla AO (no shade); ship
-    // AO comes from per-fragment ws_shipAo() with dynamic triangle split.
-    // Combine the two AO sources additively — vanilla's per-vertex
-    // averaging compounds overlap that way (two op cells at a corner →
-    // loss 0.2 + 0.2 = 0.4, not 0.8 × 0.8 = 0.64). Floor 0.2 matches
-    // sodium's deepest AO value for opaque blocks. Face shade (UP=1,
-    // DOWN=0.5, N/S=0.8, E/W=0.6) is applied after, mirroring sodium's
-    // applySidedBrightness step. Slot 6/7 (unshaded/fullbright) skip
-    // both AO and shade via v_IsShaded.
+    // Combined AO + shade. v_Color.a is PURE vanilla AO (no shade);
+    // ship AO comes from per-fragment ws_shipAo() with manhattan
+    // tent + smooth-gated cornerExtra. Combine the two sources
+    // additively in occlusion-loss space (matching vanilla's per-
+    // vertex averaging compounding rule). Floor 0.2 matches sodium's
+    // deepest opaque AO. Face shade applied after; slot 6/7
+    // (unshaded/fullbright) skips both AO and shade.
     float ao = v_Color.a;
     float shipAo = (v_IsShaded == 1)
             ? ws_shipAo(v_CameraRelWorldPos + vec3(u_VsRenderOrigin), v_WorldNormal)
@@ -407,13 +550,13 @@ void main() {
     // Tiny +lightSample.rgb keeps u_LightTex alive against GLSL dead-code
     // elimination — without it the compiler strips the texture sample
     // and sodium's bindUniform throws NPE at link time.
-    // {
-    //     // DEBUG: red = ship AO loss; green = vanilla AO loss.
-    //     float dbgVanillaLoss = clamp((1.0 - v_Color.a) * 1.25, 0.0, 1.0);
-    //     float dbgShipLoss = clamp((1.0 - shipAo) * 1.25, 0.0, 1.0);
-    //     diffuseColor.rgb = vec3(dbgShipLoss, dbgVanillaLoss, 0.0)
-    //             + lightSample.rgb * 1e-3;
-    // }
+    {
+        // DEBUG: red = ship AO loss; green = vanilla AO loss.
+        float dbgVanillaLoss = clamp((1.0 - v_Color.a) * 1.25, 0.0, 1.0);
+        float dbgShipLoss = clamp((1.0 - shipAo) * 1.25, 0.0, 1.0);
+        diffuseColor.rgb = vec3(max(dbgShipLoss, dbgVanillaLoss), 0.0, 0.0)
+                + lightSample.rgb * 1e-3;
+    }
 
     fragColor = _linearFog(diffuseColor, v_FragDistance, u_FogColor, u_FogStart, u_FogEnd);
 }

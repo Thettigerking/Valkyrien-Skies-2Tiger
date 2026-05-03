@@ -169,6 +169,13 @@ public class VsWorldFromShipLightStorage {
         final float qz = (float) scratchQuat.z;
         final float qw = (float) scratchQuat.w;
 
+        // Per-frame dense index packed into voxel.w so the ship FSH can
+        // skip same-ship occluders (their AO is already in v_Color.a).
+        // Mirrors VsShipOccluderList.populateFromShip's own assignment.
+        final float shipIndexFloat = occluders != null
+            ? (float) occluders.assignShipIndex(ship.getId())
+            : 0f;
+
         int minChunkX = xMin >> 4;
         int maxChunkX = xMax >> 4;
         int minChunkZ = zMin >> 4;
@@ -263,7 +270,7 @@ public class VsWorldFromShipLightStorage {
                         // jumping at integer crossings.
                         splatOccluderStrength(cwx, cwy, cwz);
                         if (occluders != null) {
-                            occluders.appendOccluder(cwx, cwy, cwz, qx, qy, qz, qw);
+                            occluders.appendOccluder(cwx, cwy, cwz, shipIndexFloat, qx, qy, qz, qw);
                         }
                     }
                     if (blockLight > 0) {

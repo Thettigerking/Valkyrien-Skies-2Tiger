@@ -83,31 +83,45 @@ public class SodiumCompat {
     private static final ThreadLocal<Matrix4f> CURRENT_LOCAL_TO_WORLD = new ThreadLocal<>();
     private static final ThreadLocal<int[]> CURRENT_RENDER_ORIGIN = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> IS_RENDERING_SHIP = ThreadLocal.withInitial(() -> false);
+    /** Ship being rendered on this thread. Used by setupShipShaderState to
+     *  feed the ship FSH the per-frame ship index so vs_sosShipAo can skip
+     *  same-ship voxels (their AO is already baked into v_Color.a). */
+    private static final ThreadLocal<Long> CURRENT_SHIP_ID = ThreadLocal.withInitial(() -> 0L);
 
     // Texture units used for the ship light buffer textures.
-    // Sodium uses unit 0 for the block atlas and 2 for the lightmap (LIGHT_TEXTURE_TARGET).
-    // Pick free units past those.
-    public static final int LIGHT_SECTIONS_TEXTURE_UNIT = 6;
-    public static final int LIGHT_LUT_TEXTURE_UNIT = 7;
-    public static final int BIOME_SECTIONS_TEXTURE_UNIT = 8;
-    public static final int BIOME_LUT_TEXTURE_UNIT = 9;
+    // Sodium uses unit 0 for the block atlas and 1 for the lightmap.
+    //
+    // Units 2..11 are claimed by ShipWaterPocketExternalWaterCull's
+    // ValkyrienAir_Mask{0..8} (sampler2D) + ValkyrienAir_FluidMask uniforms
+    // (BASE_MASK_TEX_UNIT=2, MAX_SHIPS=9 + 1 fluid mask). Those uniforms
+    // get assigned absolute units on the chunk program once the air-pocket
+    // setup runs on a translucent pass, and the assignment persists across
+    // all subsequent passes of that program. If we placed our usamplerBuffer
+    // / samplerBuffer uniforms in 2..11 they would alias the same texture
+    // image unit as a sampler2D from a different sampler type, and NVIDIA
+    // throws GL_INVALID_OPERATION ("program texture usage") on every draw.
+    // So our units start at 14, comfortably past the air-pocket range.
+    public static final int LIGHT_SECTIONS_TEXTURE_UNIT = 14;
+    public static final int LIGHT_LUT_TEXTURE_UNIT = 15;
+    public static final int BIOME_SECTIONS_TEXTURE_UNIT = 16;
+    public static final int BIOME_LUT_TEXTURE_UNIT = 17;
     /** Ship voxels projected into world coords for sky-occlusion + emitter
      *  contribution on the world's chunk shader (and ship-on-ship in the ship
      *  shader). Populated by {@link VsWorldFromShipLightStorage}. */
-    public static final int WORLD_FROM_SHIP_SECTIONS_TEXTURE_UNIT = 10;
-    public static final int WORLD_FROM_SHIP_LUT_TEXTURE_UNIT = 11;
+    public static final int WORLD_FROM_SHIP_SECTIONS_TEXTURE_UNIT = 18;
+    public static final int WORLD_FROM_SHIP_LUT_TEXTURE_UNIT = 19;
     /** Buffer texture (RGBA32F) holding the per-frame ship-emitter list as
      *  vec4(worldX, worldY, worldZ, lightLevel) entries. Used by both the
      *  world chunk shader (ship lights world) and ship chunk shader (ship
      *  lights other ships) for sub-block-precise glow that tracks ship
      *  motion smoothly. */
-    public static final int SHIP_EMITTER_LIST_TEXTURE_UNIT = 12;
+    public static final int SHIP_EMITTER_LIST_TEXTURE_UNIT = 20;
     /** Buffer texture (RGBA32F) holding the per-frame ship-occluder list as
      *  vec4(worldX, worldY, worldZ, 0) entries — every solid voxel of every
      *  loaded ship. Used by the world chunk shader's per-fragment ship AO so
      *  the shadow shape follows ship rotation/translation continuously
      *  (cell-storage-based AO can only morph between cell-aligned configs). */
-    public static final int SHIP_OCCLUDER_LIST_TEXTURE_UNIT = 13;
+    public static final int SHIP_OCCLUDER_LIST_TEXTURE_UNIT = 21;
 
     private static VsShipLightStorage lightStorage;
     private static VsShipBiomeColorStorage biomeStorage;
@@ -182,6 +196,11 @@ public class SodiumCompat {
             storage.populateFromShip(level, cs, emitters, occluders);
         });
         storage.pruneUnused();
+        // Precompute each occluder's nearest neighbour for the world FSH's
+        // per-voxel merge bridge. Has to run after every populateFromShip
+        // (so all ships' voxels are in the buffer) and before upload (so
+        // the GPU sees the NN data).
+        occluders.computeNearestNeighbors();
         storage.upload();
         emitters.upload();
         occluders.upload();
@@ -269,6 +288,15 @@ public class SodiumCompat {
         shipInterface.setBiomeLutSampler(BIOME_LUT_TEXTURE_UNIT);
         shipInterface.setShipEmitters(SHIP_EMITTER_LIST_TEXTURE_UNIT, getShipEmitterList().size());
         shipInterface.setShipOccluders(SHIP_OCCLUDER_LIST_TEXTURE_UNIT, getShipOccluderList().size());
+        // Tell the ship FSH which ship we're currently drawing so
+        // vs_sosShipAo can skip its own ship's voxels (whose AO is
+        // already in v_Color.a). Look up the per-frame index assigned by
+        // VsShipOccluderList; 0 means "this ship wasn't populated this
+        // frame" and the shader's compare-against-shipIndex never matches
+        // any real voxel (real voxels start at 1).
+        long currentShipId = CURRENT_SHIP_ID.get();
+        int currentShipIdx = getShipOccluderList().getShipIndex(currentShipId);
+        shipInterface.setCurrentShipIndex(currentShipIdx);
     }
 
     /** Stores transform for the next render() call on the current thread. */
@@ -444,6 +472,7 @@ public class SodiumCompat {
             pushTransform(new Matrix4f(s));
             pushLocalToWorld(new Matrix4f(localToCameraRel));
             pushRenderOrigin(originX, originY, originZ);
+            CURRENT_SHIP_ID.set(ship.getId());
             IS_RENDERING_SHIP.set(true);
 
             // Bind the world-light + biome-color buffer textures so the ship
@@ -556,6 +585,10 @@ public class SodiumCompat {
                 (float) (cameraPos.z - oz));
         wt.setShipEmitters(SHIP_EMITTER_LIST_TEXTURE_UNIT, getShipEmitterList().size());
         wt.setShipOccluders(SHIP_OCCLUDER_LIST_TEXTURE_UNIT, getShipOccluderList().size());
+        // Section storage so ws_shipAo can fold world blocks into the
+        // same SDF as ship voxels (X-X corner rule across world+ship).
+        wt.setLightSectionsSampler(LIGHT_SECTIONS_TEXTURE_UNIT);
+        wt.setLightLutSampler(LIGHT_LUT_TEXTURE_UNIT);
     }
 
     private static GlProgram<WorldThing> createWorldShader(String path, ChunkShaderOptions options) {
