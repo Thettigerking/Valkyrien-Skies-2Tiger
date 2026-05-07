@@ -42,15 +42,15 @@ uniform ivec3 u_VsRenderOrigin;
 uniform samplerBuffer u_VsShipEmitters;
 uniform int u_VsShipEmitterCount;
 
-// Per-frame list of solid ship voxel CENTERS in world space, paired with
-// each voxel's owning-ship rotation quaternion. Two RGBA32F texels per
-// voxel:
-//   texel 2i:   vec4(worldX, worldY, worldZ, 0)
+// Per-frame list of solid ship voxel CENTERS in world space, paired
+// with the voxel's owning-ship rotation quaternion. Two RGBA32F
+// texels per voxel:
+//   texel 2i:   vec4(worldX, worldY, worldZ, shipIndex)
 //   texel 2i+1: vec4(qx, qy, qz, qw)   ship-to-world rotation
 // The shader applies the inverse rotation to the fragment-to-voxel
-// offset so the Manhattan SDF runs in the voxel's ship-local frame.
-// That makes each voxel's octagonal shadow rotate with its ship instead
-// of staying world-axis-aligned.
+// offset so the polygon test runs in the voxel's ship-local frame —
+// each voxel's octagonal shadow rotates with its ship instead of
+// staying world-axis-aligned.
 uniform samplerBuffer u_VsShipOccluders;
 uniform int u_VsShipOccluderCount;
 
@@ -279,7 +279,7 @@ bool va_shouldDiscardFluid(vec3 worldPos) {
 //     (d_n <= 0) are skipped.
 //   • d_p (length of the in-plane component): how far the voxel is
 //     laterally from the fragment's projected position. Voxels too far
-//     to one side don't shadow this fragment.
+//     to one side don't shadow this fragment.>
 // Smooth falloff in both directions; sum contributions, clamp to 1.
 //
 // This replaces the cell-storage-based AO that operated on grid-aligned
@@ -287,169 +287,105 @@ bool va_shouldDiscardFluid(vec3 worldPos) {
 // the AO pattern could only morph between cell-aligned configs. With
 // the voxel list, every voxel's exact transformed position contributes,
 // so the AO shape rotates and translates continuously with the ship.
-float ws_shipAo(vec3 worldPosWorld, vec3 nf) {
+float ws_shipAo(vec3 worldPosWorld, vec3 nf, out bool anyCardinal) {
     int n = min(u_VsShipOccluderCount, VS_OCCLUDER_LOOP_CAP);
 
-    // Sharp polygonal AO from oct.py: per-voxel regular octagons
-    // (45° corner cuts) + per-voxel "puff" (inward corner expands
-    // toward this voxel's precomputed nearest neighbour) + per-voxel
-    // tongue (rectangle bridging to the NN). All merge work is
-    // PRECOMPUTED ON THE CPU (one NN per voxel, in
-    // VsShipOccluderList.computeNearestNeighbors), so each fragment
-    // does O(N) work with no top-K cap, no all-pairs loop, and no
-    // visible hops as the scene changes — every voxel contributes
-    // its merge bridge identically every frame.
-    //
-    // The NN is stored in the voxel's second texel (.xyz = NN world
-    // position, .w = NN distance; .w == FLT_MAX means "no NN within
-    // merge range"). For voxels with mutual NNs the bridge is
-    // rendered twice (same area, no visual harm); for asymmetric
-    // NNs (V's NN is W, but W's NN is M) only V renders the bridge,
-    // which still covers fully because we render the FULL gap
-    // tongue (both halves) per voxel.
-    const float K_OCT = 2.0;
-    const float HALF = 0.5 * K_OCT;            // 1.0 cell — octagon radius
-    const float A    = (sqrt(2.0) - 1.0) * 0.5 * K_OCT;  // ≈0.414
-    const float OCT_S = sqrt(2.0) - 1.0;
-    // dPair (centre-to-centre, in cells) thresholds. Octagons touch
-    // geometrically at dPair = 2*HALF = 2; we cap the merge transition
-    // at D_LOW + 0.5 so bridges and puff fade out by half a cell past
-    // touching. With this, two voxels whose centres are 3 cells apart
-    // (i.e. 2 empty blocks between them — "2 blocks away") have a full
-    // 1-cell gap between their octagons AND no bridge or puff active,
-    // so they render as completely disconnected.
-    const float D_LOW  = 2.0 * HALF;
-    const float D_HIGH = 2.0 * HALF + 0.5;
-
-    bool insidePoly = false;
-    float bestFn = 0.0;
-
-    // World tangent axes — used for the world-voxel pass below. Ship
-    // voxels run their polygon test in SHIP frame (rotated by the per-
-    // voxel quaternion) so a rotated hull's AO follows the ship's
-    // orientation instead of falling back to world-axis octagons.
-    vec3 absNfW = abs(nf);
-    vec3 uAxisW = absNfW.x > 0.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
-    vec3 vAxisW = absNfW.z > 0.5 ? vec3(0, 1, 0) : vec3(0, 0, 1);
+    // Octagonal AO footprint per voxel: Manhattan distance from the
+    // 1×1 block, with the CENTER part (where ≥ 2 cardinal-flagged
+    // voxels reach) expanded perpendicular to the cardinal axis.
+    // Expansion magnitude scales with neighbour proximity — max at
+    // vanilla distance 1 (immediately adjacent), tapering to nothing
+    // by distance 2.5. We accumulate two sums and pick at the end:
+    //   • totalNormal: plain REACH=1 octagon (fallback for fragments
+    //     with < 2 flagged voxels).
+    //   • totalStretched: per-voxel stretched contribution, used
+    //     when the fragment is in the merged centre.
+    float totalNormal   = 0.0;
+    float totalStretched = 0.0;
+    int cardReachCount = 0;
+    bool anyCenter = false;
 
     for (int i = 0; i < n; i++) {
-        vec4 voxel = texelFetch(u_VsShipOccluders, i * 3);
-        vec4 nn    = texelFetch(u_VsShipOccluders, i * 3 + 1);
-        vec4 q     = texelFetch(u_VsShipOccluders, i * 3 + 2);
+        vec4 voxel = texelFetch(u_VsShipOccluders, i * 2);
+        vec4 q     = texelFetch(u_VsShipOccluders, i * 2 + 1);
 
-        // Express fragment-to-voxel offset and surface normal in the
-        // voxel's owning ship frame. Inverse-rotation cancels the ship's
-        // world transform so the octagon test can run in axis-aligned
-        // ship coordinates — the same shape no matter how the ship is
-        // oriented in world space.
         vec3 d_ship  = vs_quatRotateInv(q, voxel.xyz - worldPosWorld);
         vec3 nf_ship = vs_quatRotateInv(q, nf);
 
         float d_n = dot(d_ship, nf_ship);
         if (d_n <= 0.0 || d_n >= 1.5) continue;
-        float fn = 1.0 - smoothstep(0.5, 1.5, d_n);
+        // Linear vertical falloff matching vanilla's per-vertex AO
+        // bilinear interpolation: full strength at d_n=0.5 (block
+        // resting on the shaded face), fading linearly to 0 at
+        // d_n=1.5 (block one over from that). Same window vanilla
+        // uses to decide which neighbour blocks contribute AO.
+        float fn = clamp(1.5 - d_n, 0.0, 1.0);
 
-        // Orient the polygon basis along the NN direction (when the
-        // voxel has an in-range NN). uAxisShip then points exactly at
-        // the NN in the tangent plane, the asymmetric octagon's
-        // inward edge is perpendicular to the V→NN line, and two
-        // voxels with mutual NN have inward edges that face each
-        // other and meet in the middle — at any angle, not just at
-        // 0°/45°/90°/135°. Voxels without an NN fall back to ship-
-        // local x as the basis seed.
-        float t = 0.0;
-        vec3 uAxisShip = vec3(0.0);
-        if (nn.w < D_HIGH) {
-            vec3 sep_ship = vs_quatRotateInv(q, nn.xyz - voxel.xyz);
-            vec3 sep_plane = sep_ship - dot(sep_ship, nf_ship) * nf_ship;
-            float sepLen = length(sep_plane);
-            if (sepLen > 1e-3 && sepLen < D_HIGH) {
-                uAxisShip = sep_plane / sepLen;
-                t = clamp((D_HIGH - sepLen) / (D_HIGH - D_LOW), 0.0, 1.0);
-            }
-        }
-        if (dot(uAxisShip, uAxisShip) < 0.5) {
-            // No usable NN — fall back to ship-local x in tangent
-            // plane (Gram-Schmidt), then ship-local z if x degenerate.
-            vec3 uRef = vec3(1.0, 0.0, 0.0);
+        // Ship-local tangent basis so the footprint stays oriented
+        // with the ship.
+        vec3 uRef = vec3(1.0, 0.0, 0.0);
+        vec3 uAxisShip = uRef - dot(uRef, nf_ship) * nf_ship;
+        if (length(uAxisShip) < 0.1) {
+            uRef = vec3(0.0, 0.0, 1.0);
             uAxisShip = uRef - dot(uRef, nf_ship) * nf_ship;
-            if (length(uAxisShip) < 0.1) {
-                uRef = vec3(0.0, 0.0, 1.0);
-                uAxisShip = uRef - dot(uRef, nf_ship) * nf_ship;
-            }
-            uAxisShip = normalize(uAxisShip);
         }
+        uAxisShip = normalize(uAxisShip);
         vec3 vAxisShip = cross(nf_ship, uAxisShip);
         float du = dot(d_ship, uAxisShip);
         float dv = dot(d_ship, vAxisShip);
 
-        // Voxel bbox check (in NN-aligned basis).
-        if (abs(du) > HALF || abs(dv) > HALF) continue;
+        // CPU-baked per-axis cardinal-neighbour flags in bits
+        // 16/17/18 of voxel.w; bits 19-22 hold a 4-bit closest-
+        // neighbour distance (1..15 linear over [0, 2.5], or 0 if
+        // no neighbour).
+        int flags = floatBitsToInt(voxel.w);
+        bool cardX = (flags & 0x10000) != 0;
+        bool cardY = (flags & 0x20000) != 0;
+        bool cardZ = (flags & 0x40000) != 0;
+        int distBits = (flags >> 19) & 0xF;
+        float closestDist = float(distBits) * (2.5 / 15.0);
 
-        // Asymmetric octagon test. uAxis points toward NN, so a
-        // fragment INWARD from the voxel (between voxel and NN)
-        // has -du > 0. Inward side gets the puffed cut that
-        // interpolates from regular 45° (t=0) to fully flat at the
-        // bbox edge (t=1); outward side stays as regular 45° cut.
-        // The whole shape (bbox, both cuts) lives in the same NN-
-        // aligned basis, so there's no basis-mismatch artifact and
-        // the inward edge actually points at the NN.
-        float halfH = (OCT_S + (1.0 - OCT_S) * t) * K_OCT * 0.5;
-        bool inside;
-        if (-du > 0.0) {
-            float du_in = -du;
-            float dvMax = HALF + max(0.0, du_in - A) * (halfH - HALF) / (HALF - A);
-            inside = abs(dv) <= dvMax;
-        } else {
-            inside = abs(du) + abs(dv) <= HALF + A;
-        }
+        // Determine which face axis the cardinal pair lies along.
+        // We expand the OPPOSITE face axis (perpendicular to the
+        // pair). Stretch magnitude tapers from a max at distance 1
+        // (vanilla touching) to 0 by distance 2.5.
+        bool pairAlongU = (cardX && abs(uAxisShip.x) > 0.5)
+                       || (cardY && abs(uAxisShip.y) > 0.5)
+                       || (cardZ && abs(uAxisShip.z) > 0.5);
+        bool pairAlongV = (cardX && abs(vAxisShip.x) > 0.5)
+                       || (cardY && abs(vAxisShip.y) > 0.5)
+                       || (cardZ && abs(vAxisShip.z) > 0.5);
+        // Linear taper: at dist=1 → factor 1.0 (full extra reach),
+        // at dist=2.5 → factor 0; clamped to [0, 1].
+        float closeness = (distBits == 0)
+                ? 0.0
+                : clamp((2.5 - closestDist) / 1.5, 0.0, 1.0);
+        // Perpendicular expansion adds up to +1.0 on top of the
+        // base reach (so REACH_PERP ranges 1.0 to 2.0).
+        float reachU = pairAlongV ? (1.0 + closeness) : 1.0;
+        float reachV = pairAlongU ? (1.0 + closeness) : 1.0;
 
-        if (inside) {
-            insidePoly = true;
-            bestFn = max(bestFn, fn);
-        }
-    }
-
-    // World voxels: regular octagon coverage only. The 3×3×3 scan
-    // around the fragment's block is done inline; for X-W cross
-    // bridges the regular-octagon union usually overlaps enough to
-    // hide the seam (world voxels are on a 1-cell grid so adjacent
-    // ones overlap their octagons heavily).
-    ivec3 blockPos = ivec3(floor(worldPosWorld));
-    uint wsSectionIndex;
-    if (bestFn > 0.0 && !vs_chunkCoordToSectionIndex(blockPos >> 4, wsSectionIndex)) {
-        uint wsSectionOffset = wsSectionIndex * VS_SECTION_SIZE_INTS;
-        ivec3 wsBlockInSection = (blockPos & 0xF) + 1;
-        uint solid27 = vs_fetchSolid3x3x3(wsSectionOffset, wsBlockInSection);
-        if (solid27 != 0u) {
-            vec3 fragBlockCenter = vec3(blockPos) + vec3(0.5);
-            int bit = 0;
-            for (int oy = -1; oy <= 1; oy++) {
-                for (int oz = -1; oz <= 1; oz++) {
-                    for (int ox = -1; ox <= 1; ox++) {
-                        if ((solid27 & (1u << uint(bit))) != 0u) {
-                            vec3 voxelCenter = fragBlockCenter + vec3(ox, oy, oz);
-                            vec3 d = voxelCenter - worldPosWorld;
-                            float d_n = dot(d, nf);
-                            if (d_n > 0.0 && d_n < 1.5) {
-                                float fn = 1.0 - smoothstep(0.5, 1.5, d_n);
-                                float du = dot(d, uAxisW);
-                                float dv = dot(d, vAxisW);
-                                if (abs(du) <= HALF && abs(dv) <= HALF
-                                        && abs(du) + abs(dv) <= HALF + A) {
-                                    insidePoly = true;
-                                    bestFn = max(bestFn, fn);
-                                }
-                            }
-                        }
-                        bit++;
-                    }
-                }
-            }
+        float mu = max(0.0, abs(du) - 0.5);
+        float mv = max(0.0, abs(dv) - 0.5);
+        float fpNormal    = max(0.0, 1.0 - mu - mv);
+        float fpStretched = max(0.0, 1.0 - mu / reachU - mv / reachV);
+        totalNormal   += fn * fpNormal;
+        totalStretched += fn * fpStretched;
+        if (fpNormal > 0.0 && (cardX || cardY || cardZ)) {
+            cardReachCount++;
+            if (mu < 0.001 && mv < 0.001) anyCenter = true;
         }
     }
+    // Blue indicator: ≥ 2 cardinal-flagged voxels reach the fragment
+    // AND none has it as its CENTER. That's the merged-interior
+    // (gap-block) region between paired voxels — excludes the
+    // columns directly under each voxel.
+    anyCardinal = (cardReachCount >= 2) && !anyCenter;
 
-    float occlusion = insidePoly ? (bestFn * (1.0 / 3.0)) : 0.0;
+    // Inside the merged centre (≥ 2 flagged voxels reach): use
+    // the perpendicular-stretched sum. Otherwise the plain octagon.
+    float totalFn = (cardReachCount >= 2) ? totalStretched : totalNormal;
+    float occlusion = clamp(totalFn * 0.25, 0.0, 1.0);
     return mix(0.2, 1.0, 1.0 - occlusion);
 }
 // Loop bound for the per-fragment emitter scan. Should match
@@ -520,8 +456,9 @@ void main() {
     // deepest opaque AO. Face shade applied after; slot 6/7
     // (unshaded/fullbright) skips both AO and shade.
     float ao = v_Color.a;
+    bool dbgAnyCardinal = false;
     float shipAo = (v_IsShaded == 1)
-            ? ws_shipAo(v_CameraRelWorldPos + vec3(u_VsRenderOrigin), v_WorldNormal)
+            ? ws_shipAo(v_CameraRelWorldPos + vec3(u_VsRenderOrigin), v_WorldNormal, dbgAnyCardinal)
             : 1.0;
     if (v_IsShaded == 1) {
         float combined = max(0.2, ao - (1.0 - shipAo));
@@ -551,10 +488,24 @@ void main() {
     // elimination — without it the compiler strips the texture sample
     // and sodium's bindUniform throws NPE at link time.
     {
-        // DEBUG: red = ship AO loss; green = vanilla AO loss.
-        float dbgVanillaLoss = clamp((1.0 - v_Color.a) * 1.25, 0.0, 1.0);
-        float dbgShipLoss = clamp((1.0 - shipAo) * 1.25, 0.0, 1.0);
-        diffuseColor.rgb = vec3(max(dbgShipLoss, dbgVanillaLoss), 0.0, 0.0)
+        // DEBUG: red = total combined AO loss (ship + vanilla
+        // merged via the same formula main rendering uses). V_x,
+        // x_x, V_V, V_V_V all show at consistent brightness when
+        // sodium would treat them equivalently.
+        float combinedDbg = (v_IsShaded == 1)
+                ? max(0.2, v_Color.a - (1.0 - shipAo))
+                : v_Color.a;
+        float dbgTotalLoss = clamp((1.0 - combinedDbg) * 1.25, 0.0, 1.0);
+        // The *1e-30 references keep u_VsLightSections and
+        // u_VsLightLut alive against GLSL dead-code elimination.
+        float keepAlive =
+              float(texelFetch(u_VsLightSections, 0).r) * 1e-30
+            + float(texelFetch(u_VsLightLut, 0).r) * 1e-30;
+        // BLUE — fragment is reached by at least one ship voxel
+        // that has a cardinal neighbour (i.e. the stretch path is
+        // active). Helps verify the CPU-side flag computation.
+        float dbgBlue = dbgAnyCardinal ? 0.5 : 0.0;
+        diffuseColor.rgb = vec3(dbgTotalLoss + keepAlive, 0.0, dbgBlue)
                 + lightSample.rgb * 1e-3;
     }
 

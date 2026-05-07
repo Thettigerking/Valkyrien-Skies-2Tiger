@@ -196,11 +196,11 @@ public class SodiumCompat {
             storage.populateFromShip(level, cs, emitters, occluders);
         });
         storage.pruneUnused();
-        // Precompute each occluder's nearest neighbour for the world FSH's
-        // per-voxel merge bridge. Has to run after every populateFromShip
-        // (so all ships' voxels are in the buffer) and before upload (so
-        // the GPU sees the NN data).
-        occluders.computeNearestNeighbors();
+        // Mark occluders that have a cardinal neighbour — any ship
+        // voxel (regardless of ship) or solid world block within 1–2
+        // cells along a world cardinal axis. Must run after every
+        // populate and before upload.
+        occluders.computeCardinalFlags(level);
         storage.upload();
         emitters.upload();
         occluders.upload();

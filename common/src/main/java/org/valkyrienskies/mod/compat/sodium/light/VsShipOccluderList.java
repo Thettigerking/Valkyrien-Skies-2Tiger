@@ -40,28 +40,15 @@ import org.valkyrienskies.core.api.ships.properties.ShipTransform;
  */
 public class VsShipOccluderList {
     /** Cap on occluders tracked per frame. The shader's loop is bounded
-     *  too; keep these in sync. 1024 entries × 48 bytes = 48 KB GPU buffer
-     *  (3 RGBA32F texels per voxel: position, NN, quaternion). */
+     *  too; keep these in sync. 1024 entries × 32 bytes = 32 KB GPU buffer
+     *  (2 RGBA32F texels per voxel: position, quaternion). */
     public static final int MAX_OCCLUDERS = 1024;
-    /** 12 floats per voxel, three vec4 texels:
-     *    [i*3 + 0] = (worldX, worldY, worldZ, shipIndex)
-     *    [i*3 + 1] = (nnWorldX, nnWorldY, nnWorldZ, nnDist3D)   — written
-     *                by {@link #computeNearestNeighbors}
-     *    [i*3 + 2] = (qx, qy, qz, qw)                            — ship
-     *                rotation, used so each voxel's octagon stays oriented
-     *                with the ship instead of becoming a world-axis box.
-     *  Without the quaternion, voxels of a rotated ship rendered as
-     *  separate world-aligned octagons offset diagonally and looked like
-     *  multiple disconnected shapes; with it, the polygon test runs in
-     *  ship frame so the merged AO follows the hull's orientation. */
-    private static final int BYTES_PER_OCCLUDER = 48;
-    /** Match D_HIGH in the world FSH: dPair beyond this never produces a
-     *  bridge, so we don't need to record an NN past this radius. Cell
-     *  units in the shader collapse to world units 1:1 (1 cell = 1 block).
-     *  Currently 2.5 cells — bridges fade out half a cell past octagon-
-     *  touching distance (D_LOW = 2*HALF = 2). */
-    private static final float NN_MAX_DIST = 2.5f;
-    private static final float NN_MAX_DIST_SQ = NN_MAX_DIST * NN_MAX_DIST;
+    /** 8 floats per voxel, two vec4 texels:
+     *    [i*2 + 0] = (worldX, worldY, worldZ, shipIndex)
+     *    [i*2 + 1] = (qx, qy, qz, qw) — ship rotation, used so each
+     *                voxel's octagon stays oriented with the ship
+     *                instead of becoming a world-axis box. */
+    private static final int BYTES_PER_OCCLUDER = 32;
 
     private final long arenaPtr;
     private int count = 0;
@@ -185,62 +172,119 @@ public class VsShipOccluderList {
         MemoryUtil.memPutFloat(offset + 4,    (float) worldY);
         MemoryUtil.memPutFloat(offset + 8,    (float) worldZ);
         MemoryUtil.memPutFloat(offset + 12,   shipIndex);
-        // Texel 1: NN slot — overwritten by computeNearestNeighbors. Init
-        // to "no neighbour" so a forgotten NN call is safe (shader skips
-        // bridge when nnDist >= D_HIGH).
-        MemoryUtil.memPutFloat(offset + 16,   0f);
-        MemoryUtil.memPutFloat(offset + 20,   0f);
-        MemoryUtil.memPutFloat(offset + 24,   0f);
-        MemoryUtil.memPutFloat(offset + 28,   Float.MAX_VALUE);
-        // Texel 2: quaternion
-        MemoryUtil.memPutFloat(offset + 32,   qx);
-        MemoryUtil.memPutFloat(offset + 36,   qy);
-        MemoryUtil.memPutFloat(offset + 40,   qz);
-        MemoryUtil.memPutFloat(offset + 44,   qw);
+        // Texel 1: quaternion
+        MemoryUtil.memPutFloat(offset + 16,   qx);
+        MemoryUtil.memPutFloat(offset + 20,   qy);
+        MemoryUtil.memPutFloat(offset + 24,   qz);
+        MemoryUtil.memPutFloat(offset + 28,   qw);
         count++;
     }
 
-    /** Brute-force O(N²) nearest-neighbour pass. For each occluder, finds
-     *  the closest other occluder within {@link #NN_MAX_DIST} and writes
-     *  it into texel 1 (offset +16). Texel 0 (position) and texel 2
-     *  (quaternion) are untouched. Bounded scenes (count up to
-     *  MAX_OCCLUDERS=1024) make this ~1 M comparisons per frame, well
-     *  under a millisecond on any modern CPU. Must be called after every
-     *  populateFromShip / appendOccluder for the frame and before
-     *  {@link #upload()}. */
-    public void computeNearestNeighbors() {
+    /** O(N²) scan: for each occluder, check whether it has a cardinal
+     *  neighbour along each WORLD axis (X, Y, Z). A "neighbour" is
+     *  any other ship voxel (regardless of which ship) OR any solid
+     *  world block within 1–2 cells along a cardinal direction. The
+     *  detection runs in world frame (no ship-local rotation) so
+     *  ship-to-ship and ship-to-world cardinal pairs are detected
+     *  consistently. Per-axis flags packed into bits 16/17/18 of the
+     *  float-bits of the shipIndex slot:
+     *    bit 16 = has neighbour along world X
+     *    bit 17 = has neighbour along world Y
+     *    bit 18 = has neighbour along world Z
+     *  Must be called after every populate / appendOccluder for the
+     *  frame and before {@link #upload()}. */
+    public void computeCardinalFlags(LevelAccessor level) {
         for (int i = 0; i < count; i++) {
-            long iOffset = arenaPtr + (long) i * BYTES_PER_OCCLUDER;
-            float ix = MemoryUtil.memGetFloat(iOffset);
-            float iy = MemoryUtil.memGetFloat(iOffset + 4);
-            float iz = MemoryUtil.memGetFloat(iOffset + 8);
+            long iOff = arenaPtr + (long) i * BYTES_PER_OCCLUDER;
+            float ix = MemoryUtil.memGetFloat(iOff);
+            float iy = MemoryUtil.memGetFloat(iOff + 4);
+            float iz = MemoryUtil.memGetFloat(iOff + 8);
 
-            float bestDistSq = NN_MAX_DIST_SQ;
-            float bestX = 0f, bestY = 0f, bestZ = 0f;
+            boolean cardX = false, cardY = false, cardZ = false;
+            // Track the closest cardinal-neighbour distance found so
+            // far per voxel — the shader uses it to scale the
+            // perpendicular-axis expansion (max at vanilla distance
+            // 1, less the further apart the neighbours are).
+            float closestDist = 99.0f;
+
+            // Pass 1: other ship voxels (any ship) cardinally aligned
+            // in world frame.
             for (int j = 0; j < count; j++) {
                 if (j == i) continue;
-                long jOffset = arenaPtr + (long) j * BYTES_PER_OCCLUDER;
-                float jx = MemoryUtil.memGetFloat(jOffset);
-                float jy = MemoryUtil.memGetFloat(jOffset + 4);
-                float jz = MemoryUtil.memGetFloat(jOffset + 8);
-                float dx = jx - ix, dy = jy - iy, dz = jz - iz;
-                float distSq = dx * dx + dy * dy + dz * dz;
-                if (distSq < bestDistSq) {
-                    bestDistSq = distSq;
-                    bestX = jx;
-                    bestY = jy;
-                    bestZ = jz;
+                long jOff = arenaPtr + (long) j * BYTES_PER_OCCLUDER;
+                float dx = (float) Math.abs(MemoryUtil.memGetFloat(jOff)     - ix);
+                float dy = (float) Math.abs(MemoryUtil.memGetFloat(jOff + 4) - iy);
+                float dz = (float) Math.abs(MemoryUtil.memGetFloat(jOff + 8) - iz);
+
+                if (dx >= 0.5f && dy < 0.3f && dz < 0.3f && dx <= 2.5f) {
+                    cardX = true;
+                    closestDist = Math.min(closestDist, dx);
+                }
+                if (dy >= 0.5f && dx < 0.3f && dz < 0.3f && dy <= 2.5f) {
+                    cardY = true;
+                    closestDist = Math.min(closestDist, dy);
+                }
+                if (dz >= 0.5f && dx < 0.3f && dy < 0.3f && dz <= 2.5f) {
+                    cardZ = true;
+                    closestDist = Math.min(closestDist, dz);
                 }
             }
 
-            float bestDist = bestDistSq < NN_MAX_DIST_SQ
-                    ? (float) Math.sqrt(bestDistSq)
-                    : Float.MAX_VALUE;
-            MemoryUtil.memPutFloat(iOffset + 16, bestX);
-            MemoryUtil.memPutFloat(iOffset + 20, bestY);
-            MemoryUtil.memPutFloat(iOffset + 24, bestZ);
-            MemoryUtil.memPutFloat(iOffset + 28, bestDist);
+            // Pass 2: solid world blocks at cardinal offsets ±1, ±2.
+            // Distance to a world block at offset d is d (its centre
+            // is at the same ½-fractional offset as the ship voxel
+            // for axis-aligned positions).
+            if (level != null) {
+                int bx = (int) Math.floor(ix);
+                int by = (int) Math.floor(iy);
+                int bz = (int) Math.floor(iz);
+                for (int d = 1; d <= 2; d++) {
+                    if (isSolidWorldBlock(level, bx + d, by, bz)
+                            || isSolidWorldBlock(level, bx - d, by, bz)) {
+                        cardX = true;
+                        closestDist = Math.min(closestDist, (float) d);
+                    }
+                    if (isSolidWorldBlock(level, bx, by + d, bz)
+                            || isSolidWorldBlock(level, bx, by - d, bz)) {
+                        cardY = true;
+                        closestDist = Math.min(closestDist, (float) d);
+                    }
+                    if (isSolidWorldBlock(level, bx, by, bz + d)
+                            || isSolidWorldBlock(level, bx, by, bz - d)) {
+                        cardZ = true;
+                        closestDist = Math.min(closestDist, (float) d);
+                    }
+                }
+            }
+
+            // Encode the closest neighbour distance into 4 bits
+            // (bits 19-22): 0 = no neighbour, 1..15 mapped linearly
+            // over distance range [0, 2.5]. The shader unpacks via
+            // (bits / 15) * 2.5 to recover an approximate distance.
+            int distBits = 0;
+            if (closestDist <= 2.5f) {
+                distBits = Math.max(1,
+                    Math.min(15, (int) Math.round(closestDist * 15.0f / 2.5f)));
+            }
+
+            // OR flag bits INTO the existing shipIndex float bits:
+            //   bits 16-18: per-axis cardinal flag.
+            //   bits 19-22: 4-bit distance (0 = none, else 1..15).
+            int origBits = Float.floatToRawIntBits(MemoryUtil.memGetFloat(iOff + 12));
+            int packed = origBits
+                | (cardX ? 0x10000 : 0)
+                | (cardY ? 0x20000 : 0)
+                | (cardZ ? 0x40000 : 0)
+                | ((distBits & 0xF) << 19);
+            MemoryUtil.memPutFloat(iOff + 12, Float.intBitsToFloat(packed));
         }
+    }
+
+    private boolean isSolidWorldBlock(LevelAccessor level, int x, int y, int z) {
+        scratchBlockPos.set(x, y, z);
+        BlockState state = level.getBlockState(scratchBlockPos);
+        if (state.isAir()) return false;
+        return state.canOcclude() && state.isCollisionShapeFullBlock(level, scratchBlockPos);
     }
 
     public void upload() {
