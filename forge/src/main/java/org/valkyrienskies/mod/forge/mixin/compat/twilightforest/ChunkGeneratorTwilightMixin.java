@@ -30,6 +30,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 @Pseudo
 @Mixin(targets = "twilightforest.world.components.chunkgenerators.ChunkGeneratorTwilight")
@@ -50,7 +51,10 @@ public class ChunkGeneratorTwilightMixin {
     @Inject(method = "buildSurface", at = @At("HEAD"), cancellable = true)
     private void preBuildSurface(WorldGenRegion world, StructureManager manager, RandomState random, ChunkAccess chunk, CallbackInfo ci) {
         final ChunkPos chunkPos = chunk.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (chunk.getLevel() == null?
+            VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z):
+            VSGameUtilsKt.isChunkInShipyard(chunk.getLevel(), chunkPos.x, chunkPos.z)
+        ) {
             ci.cancel();
         }
     }
@@ -58,7 +62,9 @@ public class ChunkGeneratorTwilightMixin {
     @Inject(method = "fillFromNoise", at = @At("HEAD"), cancellable = true)
     private void preFillFromNoise(Executor executor, Blender blender, RandomState random, StructureManager structureManager, ChunkAccess chunk, CallbackInfoReturnable<CompletableFuture<ChunkAccess>> cir) {
         final ChunkPos chunkPos = chunk.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (chunk.getLevel() == null?
+            VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z):
+            VSGameUtilsKt.isChunkInShipyard(chunk.getLevel(), chunkPos.x, chunkPos.z)) {
             cir.setReturnValue(CompletableFuture.completedFuture(chunk));
         }
     }
@@ -66,14 +72,16 @@ public class ChunkGeneratorTwilightMixin {
     @Inject(method = "createStructures", at = @At("HEAD"), cancellable = true)
     private void preCreateStructures(RegistryAccess access, ChunkGeneratorStructureState state, StructureManager manager, ChunkAccess chunk, StructureTemplateManager templateManager, CallbackInfo ci) {
         final ChunkPos chunkPos = chunk.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (chunk.getLevel() == null?
+            VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z):
+            VSGameUtilsKt.isChunkInShipyard(chunk.getLevel(), chunkPos.x, chunkPos.z)) {
             ci.cancel();
         }
     }
 
     @Inject(method = "findNearestMapStructure", at = @At("HEAD"), cancellable = true)
     private void preFindNearestMapStructure(ServerLevel level, HolderSet<Structure> targetStructures, BlockPos pos, int searchRadius, boolean skipKnownStructures, CallbackInfoReturnable cir) {
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(pos.getX() >> 4, pos.getZ() >> 4)) {
+        if (VSGameUtilsKt.isChunkInShipyard(level, pos.getX() >> 4, pos.getZ() >> 4)) {
             cir.setReturnValue(null);
         }
     }

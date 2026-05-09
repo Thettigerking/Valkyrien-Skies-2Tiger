@@ -138,7 +138,7 @@ fun Level.isTickingChunk(chunkX: Int, chunkZ: Int) =
  */
 fun Level.isChunkLoadedForVS(pos: ChunkPos): Boolean {
     // For shipyard chunks, accept FULL status (level 33) — no need for ticking
-    if (VS2ChunkAllocator.isChunkInShipyardCompanion(pos.x, pos.z)) {
+    if (this.isChunkInShipyard(pos.x, pos.z)) {
         return (chunkSource as ServerChunkCache).getChunkNow(pos.x, pos.z) != null
     }
     // For world chunks, require ticking status

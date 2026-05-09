@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ChunkTaskPriorityQueueSorter;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ThreadedLevelLightEngine;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.level.ChunkPos;
@@ -16,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 /**
  * Safety-net fix for the "Saving World" hang.
@@ -41,6 +43,7 @@ public class MixinChunkMapClose {
     @Shadow @Final private java.util.Queue<Runnable> unloadQueue;
     @Shadow @Final private ChunkTaskPriorityQueueSorter queueSorter;
     @Shadow @Final ChunkMap.DistanceManager distanceManager;
+    @Shadow @Final private ServerLevel level;
 
     @Inject(method = "hasWork", at = @At("HEAD"), cancellable = true)
     private void vs$hasWorkSkipShipyard(CallbackInfoReturnable<Boolean> cir) {
@@ -53,7 +56,7 @@ public class MixinChunkMapClose {
             long key = entry.getLongKey();
             int cx = ChunkPos.getX(key);
             int cz = ChunkPos.getZ(key);
-            if (!VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(cx, cz)) {
+            if (!VSGameUtilsKt.isChunkInShipyard(level, cx, cz)) {
                 hasNonShipyard = true;
                 break;
             }

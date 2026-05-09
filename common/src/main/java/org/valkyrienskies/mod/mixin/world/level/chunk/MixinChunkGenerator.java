@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 @Mixin(ChunkGenerator.class)
 public class MixinChunkGenerator {
@@ -19,7 +20,7 @@ public class MixinChunkGenerator {
     // tfc in forge part of the mod has a bandaid solution, if this is fixed please remove that
     @Inject(method = "findNearestMapStructure", at = @At("HEAD"), cancellable = true)
     private void preFindNearestMapFeature(ServerLevel serverLevel, HolderSet<Structure> holderSet, BlockPos blockPos, int i, boolean bl, CallbackInfoReturnable<Pair<BlockPos, Holder<Structure>>> cir) {
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(blockPos.getX() >> 4, blockPos.getZ() >> 4)) {
+        if (VSGameUtilsKt.isChunkInShipyard(serverLevel, blockPos.getX() >> 4, blockPos.getZ() >> 4)) {
             cir.setReturnValue(null);
         }
     }
