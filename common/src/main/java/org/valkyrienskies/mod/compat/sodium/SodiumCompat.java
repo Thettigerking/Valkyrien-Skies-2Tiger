@@ -196,10 +196,10 @@ public class SodiumCompat {
             storage.populateFromShip(level, cs, emitters, occluders);
         });
         storage.pruneUnused();
-        // Mark occluders that have a cardinal neighbour — any ship
-        // voxel (regardless of ship) or solid world block within 1–2
-        // cells along a world cardinal axis. Must run after every
-        // populate and before upload.
+        // Mark occluders that have a cardinal neighbour. The world shader uses
+        // this to run the bilinear merge path across the gap and the two
+        // adjacent rows around it, while leaving lone exterior corners on the
+        // sharper Manhattan footprint.
         occluders.computeCardinalFlags(level);
         storage.upload();
         emitters.upload();

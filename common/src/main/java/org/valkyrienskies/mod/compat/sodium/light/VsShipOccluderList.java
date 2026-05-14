@@ -49,6 +49,9 @@ public class VsShipOccluderList {
      *                voxel's octagon stays oriented with the ship
      *                instead of becoming a world-axis box. */
     private static final int BYTES_PER_OCCLUDER = 32;
+    private static final float CARDINAL_MIN_DISTANCE = 0.75f;
+    private static final float CARDINAL_MAX_DISTANCE = 2.10f;
+    private static final float CARDINAL_CROSS_AXIS_EPSILON = 0.18f;
 
     private final long arenaPtr;
     private int count = 0;
@@ -183,11 +186,11 @@ public class VsShipOccluderList {
     /** O(N²) scan: for each occluder, check whether it has a cardinal
      *  neighbour along each WORLD axis (X, Y, Z). A "neighbour" is
      *  any other ship voxel (regardless of which ship) OR any solid
-     *  world block within 1–2 cells along a cardinal direction. The
+     *  world block within 1-2 cells along a cardinal direction. The
      *  detection runs in world frame (no ship-local rotation) so
      *  ship-to-ship and ship-to-world cardinal pairs are detected
-     *  consistently. Per-axis flags packed into bits 16/17/18 of the
-     *  float-bits of the shipIndex slot:
+     *  consistently. Per-axis flags are packed into bits 16/17/18 of
+     *  the float-bits of the shipIndex slot:
      *    bit 16 = has neighbour along world X
      *    bit 17 = has neighbour along world Y
      *    bit 18 = has neighbour along world Z
@@ -200,12 +203,9 @@ public class VsShipOccluderList {
             float iy = MemoryUtil.memGetFloat(iOff + 4);
             float iz = MemoryUtil.memGetFloat(iOff + 8);
 
-            boolean cardX = false, cardY = false, cardZ = false;
-            // Track the closest cardinal-neighbour distance found so
-            // far per voxel — the shader uses it to scale the
-            // perpendicular-axis expansion (max at vanilla distance
-            // 1, less the further apart the neighbours are).
-            float closestDist = 99.0f;
+            boolean cardX = false;
+            boolean cardY = false;
+            boolean cardZ = false;
 
             // Pass 1: other ship voxels (any ship) cardinally aligned
             // in world frame.
@@ -216,66 +216,58 @@ public class VsShipOccluderList {
                 float dy = (float) Math.abs(MemoryUtil.memGetFloat(jOff + 4) - iy);
                 float dz = (float) Math.abs(MemoryUtil.memGetFloat(jOff + 8) - iz);
 
-                if (dx >= 0.5f && dy < 0.3f && dz < 0.3f && dx <= 2.5f) {
+                if (dx >= CARDINAL_MIN_DISTANCE && dx <= CARDINAL_MAX_DISTANCE
+                        && dy < CARDINAL_CROSS_AXIS_EPSILON && dz < CARDINAL_CROSS_AXIS_EPSILON) {
                     cardX = true;
-                    closestDist = Math.min(closestDist, dx);
                 }
-                if (dy >= 0.5f && dx < 0.3f && dz < 0.3f && dy <= 2.5f) {
+                if (dy >= CARDINAL_MIN_DISTANCE && dy <= CARDINAL_MAX_DISTANCE
+                        && dx < CARDINAL_CROSS_AXIS_EPSILON && dz < CARDINAL_CROSS_AXIS_EPSILON) {
                     cardY = true;
-                    closestDist = Math.min(closestDist, dy);
                 }
-                if (dz >= 0.5f && dx < 0.3f && dy < 0.3f && dz <= 2.5f) {
+                if (dz >= CARDINAL_MIN_DISTANCE && dz <= CARDINAL_MAX_DISTANCE
+                        && dx < CARDINAL_CROSS_AXIS_EPSILON && dy < CARDINAL_CROSS_AXIS_EPSILON) {
                     cardZ = true;
-                    closestDist = Math.min(closestDist, dz);
                 }
             }
 
-            // Pass 2: solid world blocks at cardinal offsets ±1, ±2.
-            // Distance to a world block at offset d is d (its centre
-            // is at the same ½-fractional offset as the ship voxel
-            // for axis-aligned positions).
+            // Pass 2: solid world blocks at cardinal offsets +/-1, +/-2.
             if (level != null) {
-                int bx = (int) Math.floor(ix);
-                int by = (int) Math.floor(iy);
-                int bz = (int) Math.floor(iz);
+                int bx = Math.round(ix - 0.5f);
+                int by = Math.round(iy - 0.5f);
+                int bz = Math.round(iz - 0.5f);
+                boolean nearBlockCenter = Math.abs(ix - (bx + 0.5f)) < CARDINAL_CROSS_AXIS_EPSILON
+                        && Math.abs(iy - (by + 0.5f)) < CARDINAL_CROSS_AXIS_EPSILON
+                        && Math.abs(iz - (bz + 0.5f)) < CARDINAL_CROSS_AXIS_EPSILON;
+                if (!nearBlockCenter) {
+                    int origBits = Float.floatToRawIntBits(MemoryUtil.memGetFloat(iOff + 12));
+                    int packed = origBits
+                        | (cardX ? 0x10000 : 0)
+                        | (cardY ? 0x20000 : 0)
+                        | (cardZ ? 0x40000 : 0);
+                    MemoryUtil.memPutFloat(iOff + 12, Float.intBitsToFloat(packed));
+                    continue;
+                }
                 for (int d = 1; d <= 2; d++) {
                     if (isSolidWorldBlock(level, bx + d, by, bz)
                             || isSolidWorldBlock(level, bx - d, by, bz)) {
                         cardX = true;
-                        closestDist = Math.min(closestDist, (float) d);
                     }
                     if (isSolidWorldBlock(level, bx, by + d, bz)
                             || isSolidWorldBlock(level, bx, by - d, bz)) {
                         cardY = true;
-                        closestDist = Math.min(closestDist, (float) d);
                     }
                     if (isSolidWorldBlock(level, bx, by, bz + d)
                             || isSolidWorldBlock(level, bx, by, bz - d)) {
                         cardZ = true;
-                        closestDist = Math.min(closestDist, (float) d);
                     }
                 }
             }
 
-            // Encode the closest neighbour distance into 4 bits
-            // (bits 19-22): 0 = no neighbour, 1..15 mapped linearly
-            // over distance range [0, 2.5]. The shader unpacks via
-            // (bits / 15) * 2.5 to recover an approximate distance.
-            int distBits = 0;
-            if (closestDist <= 2.5f) {
-                distBits = Math.max(1,
-                    Math.min(15, (int) Math.round(closestDist * 15.0f / 2.5f)));
-            }
-
-            // OR flag bits INTO the existing shipIndex float bits:
-            //   bits 16-18: per-axis cardinal flag.
-            //   bits 19-22: 4-bit distance (0 = none, else 1..15).
             int origBits = Float.floatToRawIntBits(MemoryUtil.memGetFloat(iOff + 12));
             int packed = origBits
                 | (cardX ? 0x10000 : 0)
                 | (cardY ? 0x20000 : 0)
-                | (cardZ ? 0x40000 : 0)
-                | ((distBits & 0xF) << 19);
+                | (cardZ ? 0x40000 : 0);
             MemoryUtil.memPutFloat(iOff + 12, Float.intBitsToFloat(packed));
         }
     }

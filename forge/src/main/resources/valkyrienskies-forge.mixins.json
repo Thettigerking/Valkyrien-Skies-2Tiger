@@ -30,7 +30,7 @@
     "feature.forge_interact.MixinIForgePlayer",
     "feature.shipyard_entities.MixinPersistentEntitySectionManager",
     "feature.water_in_ships_entity.MixinEntity",
-    "world.level.block.FireMixin"
+    // "world.level.block.FireMixin"
   ],
   "client": [
     "client.render.MixinLevelRenderer",
