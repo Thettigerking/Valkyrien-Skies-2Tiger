@@ -270,6 +270,30 @@ public class VsShipOccluderList {
                 | (cardZ ? 0x40000 : 0);
             MemoryUtil.memPutFloat(iOff + 12, Float.intBitsToFloat(packed));
         }
+        prioritizeCardinalOccluders();
+    }
+
+    private void prioritizeCardinalOccluders() {
+        int write = 0;
+        for (int read = 0; read < count; read++) {
+            long readOff = arenaPtr + (long) read * BYTES_PER_OCCLUDER;
+            int flags = Float.floatToRawIntBits(MemoryUtil.memGetFloat(readOff + 12));
+            if ((flags & 0x70000) == 0) continue;
+            if (read != write) {
+                swapOccluders(read, write);
+            }
+            write++;
+        }
+    }
+
+    private void swapOccluders(int a, int b) {
+        long aOff = arenaPtr + (long) a * BYTES_PER_OCCLUDER;
+        long bOff = arenaPtr + (long) b * BYTES_PER_OCCLUDER;
+        for (int byteOffset = 0; byteOffset < BYTES_PER_OCCLUDER; byteOffset += Float.BYTES) {
+            float tmp = MemoryUtil.memGetFloat(aOff + byteOffset);
+            MemoryUtil.memPutFloat(aOff + byteOffset, MemoryUtil.memGetFloat(bOff + byteOffset));
+            MemoryUtil.memPutFloat(bOff + byteOffset, tmp);
+        }
     }
 
     private boolean isSolidWorldBlock(LevelAccessor level, int x, int y, int z) {

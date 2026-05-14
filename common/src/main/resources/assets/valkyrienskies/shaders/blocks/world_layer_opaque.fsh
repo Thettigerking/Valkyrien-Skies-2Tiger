@@ -195,11 +195,10 @@ out vec4 fragColor;
 const float WS_UV_MIN = 1.0 / 32.0;
 const float WS_UV_MAX = 31.0 / 32.0;
 
-// Loop bound for the per-fragment ship-occluder scan. Should match
-// VsShipOccluderList.MAX_OCCLUDERS — 1024 fits but is excessive per
-// fragment; 128 covers typical scenes (a single mid-size ship's solid
-// voxels), excess entries beyond this cap are silently ignored.
-const int VS_OCCLUDER_LOOP_CAP = 128;
+// Loop bound for the per-fragment ship-occluder scan. Pair detection is
+// CPU-packed into voxel.w, so this no longer does an inner fragment scan.
+// 256 keeps cross-ship cases visible without the old 1024x1024 fragment cost.
+const int VS_OCCLUDER_LOOP_CAP = 256;
 
 const float VS_AO_CARDINAL_MIN_DISTANCE = 0.75;
 const float VS_AO_CARDINAL_MAX_DISTANCE = 2.10;
@@ -217,55 +216,29 @@ bool vs_isFaceTangentCardinalOffset(ivec3 offset, vec3 absNf) {
     return (offset.x != 0 && offset.y == 0) || (offset.y != 0 && offset.x == 0);
 }
 
-bool vs_isFaceTangentCardinalPair(vec3 d, vec3 absNf) {
-    bool cardinalX = d.x >= VS_AO_CARDINAL_MIN_DISTANCE && d.x <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.y < VS_AO_CARDINAL_CROSS_EPSILON && d.z < VS_AO_CARDINAL_CROSS_EPSILON;
-    bool cardinalY = d.y >= VS_AO_CARDINAL_MIN_DISTANCE && d.y <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.x < VS_AO_CARDINAL_CROSS_EPSILON && d.z < VS_AO_CARDINAL_CROSS_EPSILON;
-    bool cardinalZ = d.z >= VS_AO_CARDINAL_MIN_DISTANCE && d.z <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.x < VS_AO_CARDINAL_CROSS_EPSILON && d.y < VS_AO_CARDINAL_CROSS_EPSILON;
-    if (absNf.x > 0.5) return cardinalY || cardinalZ;
-    if (absNf.y > 0.5) return cardinalX || cardinalZ;
-    return cardinalX || cardinalY;
+bool vs_inFlaggedPairBand(float axisDelta, float perpDelta) {
+    return axisDelta >= 0.5 - VS_AO_MERGE_BAND_EPSILON
+        && axisDelta <= VS_AO_CARDINAL_MAX_DISTANCE - 0.5 + VS_AO_MERGE_BAND_EPSILON
+        && perpDelta <= VS_AO_MERGE_BAND_PERP;
 }
 
-bool vs_inFaceTangentPairBand(vec3 a, vec3 b, vec3 p, vec3 absNf) {
-    vec3 d = abs(b - a);
-    if (d.x >= VS_AO_CARDINAL_MIN_DISTANCE && d.x <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.y < VS_AO_CARDINAL_CROSS_EPSILON && d.z < VS_AO_CARDINAL_CROSS_EPSILON
-            && absNf.x < 0.5) {
-        float lo = min(a.x, b.x) + 0.5 - VS_AO_MERGE_BAND_EPSILON;
-        float hi = max(a.x, b.x) - 0.5 + VS_AO_MERGE_BAND_EPSILON;
-        float perp = absNf.y > 0.5 ? abs(p.z - (a.z + b.z) * 0.5) : abs(p.y - (a.y + b.y) * 0.5);
-        return p.x >= lo && p.x <= hi && perp <= VS_AO_MERGE_BAND_PERP;
-    }
-    if (d.y >= VS_AO_CARDINAL_MIN_DISTANCE && d.y <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.x < VS_AO_CARDINAL_CROSS_EPSILON && d.z < VS_AO_CARDINAL_CROSS_EPSILON
-            && absNf.y < 0.5) {
-        float lo = min(a.y, b.y) + 0.5 - VS_AO_MERGE_BAND_EPSILON;
-        float hi = max(a.y, b.y) - 0.5 + VS_AO_MERGE_BAND_EPSILON;
-        float perp = absNf.x > 0.5 ? abs(p.z - (a.z + b.z) * 0.5) : abs(p.x - (a.x + b.x) * 0.5);
-        return p.y >= lo && p.y <= hi && perp <= VS_AO_MERGE_BAND_PERP;
-    }
-    if (d.z >= VS_AO_CARDINAL_MIN_DISTANCE && d.z <= VS_AO_CARDINAL_MAX_DISTANCE
-            && d.x < VS_AO_CARDINAL_CROSS_EPSILON && d.y < VS_AO_CARDINAL_CROSS_EPSILON
-            && absNf.z < 0.5) {
-        float lo = min(a.z, b.z) + 0.5 - VS_AO_MERGE_BAND_EPSILON;
-        float hi = max(a.z, b.z) - 0.5 + VS_AO_MERGE_BAND_EPSILON;
-        float perp = absNf.x > 0.5 ? abs(p.y - (a.y + b.y) * 0.5) : abs(p.x - (a.x + b.x) * 0.5);
-        return p.z >= lo && p.z <= hi && perp <= VS_AO_MERGE_BAND_PERP;
-    }
-    return false;
-}
+bool vs_hasActiveCardinalFlag(vec3 voxelPos, vec3 worldPos, int flags, vec3 absNf) {
+    vec3 d = abs(worldPos - voxelPos);
+    bool cardX = (flags & 0x10000) != 0;
+    bool cardY = (flags & 0x20000) != 0;
+    bool cardZ = (flags & 0x40000) != 0;
 
-bool vs_hasActiveCardinalShipPair(vec3 a, int selfIndex, int n, vec3 absNf, vec3 worldPos) {
-    for (int j = 0; j < n; j++) {
-        if (j == selfIndex) continue;
-        vec3 b = texelFetch(u_VsShipOccluders, j * 2).xyz;
-        vec3 d = abs(b - a);
-        if (vs_isFaceTangentCardinalPair(d, absNf) && vs_inFaceTangentPairBand(a, b, worldPos, absNf)) {
-            return true;
-        }
+    if (cardX && absNf.x < 0.5) {
+        float perp = absNf.y > 0.5 ? d.z : d.y;
+        if (vs_inFlaggedPairBand(d.x, perp)) return true;
+    }
+    if (cardY && absNf.y < 0.5) {
+        float perp = absNf.x > 0.5 ? d.z : d.x;
+        if (vs_inFlaggedPairBand(d.y, perp)) return true;
+    }
+    if (cardZ && absNf.z < 0.5) {
+        float perp = absNf.x > 0.5 ? d.y : d.x;
+        if (vs_inFlaggedPairBand(d.z, perp)) return true;
     }
     return false;
 }
@@ -453,7 +426,10 @@ float ws_shipAo(vec3 worldPosWorld, vec3 nf) {
     for (int i = 0; i < n; i++) {
         vec4 voxel = texelFetch(u_VsShipOccluders, i * 2);
         vec4 q     = texelFetch(u_VsShipOccluders, i * 2 + 1);
-        bool hasActiveCardinalPair = vs_hasActiveCardinalShipPair(voxel.xyz, i, n, absNf, worldPosWorld);
+        int flags = floatBitsToInt(voxel.w);
+        bool hasCardinalCandidate = (flags & 0x70000) != 0;
+        bool hasActiveCardinalPair = hasCardinalCandidate
+                && vs_hasActiveCardinalFlag(voxel.xyz, worldPosWorld, flags, absNf);
 
         vec3 nf_ship = vs_quatRotateInv(q, nf);
         // Skip voxels behind the face plane based on fragment
