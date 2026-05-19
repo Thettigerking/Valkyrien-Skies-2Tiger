@@ -33,11 +33,13 @@ import org.valkyrienskies.core.internal.VsiCoreClient
 import org.valkyrienskies.mod.api.BlockEntityPhysicsListener
 import org.valkyrienskies.mod.api.EntityPhysicsListener
 import org.valkyrienskies.mod.api.SeatedControllingPlayer
+import org.valkyrienskies.mod.api.dimensionId
 import org.valkyrienskies.mod.api.getShipManagingBlock
 import org.valkyrienskies.mod.api_impl.events.VsApiImpl
 import org.valkyrienskies.mod.common.blockentity.TestAntigravBlockEntity
 import org.valkyrienskies.mod.common.blockentity.TestHingeBlockEntity
 import org.valkyrienskies.mod.common.blockentity.TestThrusterBlockEntity
+import org.valkyrienskies.mod.common.config.DimensionParametersResolver
 import org.valkyrienskies.mod.common.entity.ShipMountingEntity
 import org.valkyrienskies.mod.common.entity.VSPhysicsEntity
 import org.valkyrienskies.mod.common.jackson.BlockPosDeserializer
@@ -50,6 +52,7 @@ import org.valkyrienskies.mod.common.util.GameToPhysicsAdapter
 import org.valkyrienskies.mod.common.util.ShipSettings
 import org.valkyrienskies.mod.common.util.SplitHandler
 import org.valkyrienskies.mod.common.util.SplittingDisablerAttachment
+import org.valkyrienskies.mod.common.util.VoidAttachment
 import org.valkyrienskies.mod.common.util.WorldBorderAttachment
 import org.valkyrienskies.mod.mixinducks.client.world.ClientChunkCacheDuck
 import org.valkyrienskies.mod.mixinducks.feature.tickets.PlayerKnownShipsDuck
@@ -147,14 +150,22 @@ object ValkyrienSkiesMod {
         }
         core.registerAttachment(BuoyancyHandlerAttachment::class.java)
         core.registerAttachment(WorldBorderAttachment::class.java)
+        core.registerAttachment(VoidAttachment::class.java)
 
         core.shipLoadEvent.on { event ->
             event.ship.setAttachment(SplittingDisablerAttachment(true))
             event.ship.setAttachment(BuoyancyHandlerAttachment())
             event.ship.setAttachment(WorldBorderAttachment())
+            event.ship.setAttachment(VoidAttachment())
             val level = currentServer?.getLevelFromDimensionId(event.ship.chunkClaimDimension)
+            // Maybe we should perf test this?
             level?.let {
                 event.ship.getAttachment(WorldBorderAttachment::class.java)!!.border = it.worldBorder
+                if (!(DimensionParametersResolver.dimensionMap[level.dimensionId]?.disableVoidSaving ?: false)) {
+                    event.ship.getAttachment(VoidAttachment::class.java)!!.lowestHeight = it.yRange.minY - 64
+                } else {
+                    event.ship.getAttachment(VoidAttachment::class.java)!!.lowestHeight = null
+                }
             }
         }
 
