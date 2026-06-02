@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 @Mixin(ChunkStatusTasks.class)
 public class MixinChunkStatus {
@@ -24,7 +25,7 @@ public class MixinChunkStatus {
         final CallbackInfoReturnable<CompletableFuture<ChunkAccess>> cir
     ) {
         final ChunkPos chunkPos = chunkAccess.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (VSGameUtilsKt.isChunkInShipyard(worldGenContext.level(), chunkPos.x, chunkPos.z)) {
             cir.setReturnValue(CompletableFuture.completedFuture(chunkAccess));
         }
     }
@@ -36,7 +37,7 @@ public class MixinChunkStatus {
         final CallbackInfoReturnable<CompletableFuture<ChunkAccess>> cir
     ) {
         final ChunkPos chunkPos = chunkAccess.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (VSGameUtilsKt.isChunkInShipyard(worldGenContext.level(), chunkPos.x, chunkPos.z)) {
             worldGenContext.level().onStructureStartsAvailable(chunkAccess);
             cir.setReturnValue(CompletableFuture.completedFuture(chunkAccess));
         }
@@ -59,7 +60,7 @@ public class MixinChunkStatus {
         final CallbackInfoReturnable<CompletableFuture<ChunkAccess>> cir
     ) {
         final ChunkPos chunkPos = chunkAccess.getPos();
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+        if (VSGameUtilsKt.isChunkInShipyard(worldGenContext.level(), chunkPos.x, chunkPos.z)) {
             cir.setReturnValue(CompletableFuture.completedFuture(chunkAccess));
         }
     }

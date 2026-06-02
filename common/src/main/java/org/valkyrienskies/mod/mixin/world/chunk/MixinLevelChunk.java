@@ -69,7 +69,7 @@ public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChun
      */
     @Inject(method = "isTicking", at = @At("HEAD"), cancellable = true)
     private void vs$allowShipyardBlockEntityTicking(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(
+        if (VSGameUtilsKt.isChunkInShipyard(level,
                 pos.getX() >> 4, pos.getZ() >> 4)) {
             cir.setReturnValue(true);
         }
@@ -85,7 +85,7 @@ public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChun
      */
     @Inject(method = "getFullStatus", at = @At("HEAD"), cancellable = true)
     private void vs$upgradeShipyardChunkStatus(CallbackInfoReturnable<FullChunkStatus> cir) {
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(
+        if (VSGameUtilsKt.isChunkInShipyard(level,
                 this.chunkPos.x, this.chunkPos.z)) {
             cir.setReturnValue(FullChunkStatus.BLOCK_TICKING);
         }

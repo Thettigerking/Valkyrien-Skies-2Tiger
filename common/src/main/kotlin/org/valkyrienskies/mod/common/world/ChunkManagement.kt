@@ -11,6 +11,7 @@ import org.valkyrienskies.mod.common.VS2ChunkAllocator
 import org.valkyrienskies.mod.common.executeIf
 import org.valkyrienskies.mod.common.getLevelFromDimensionId
 import org.valkyrienskies.mod.common.getShipManagingPos
+import org.valkyrienskies.mod.common.isChunkInShipyard
 import org.valkyrienskies.mod.common.isChunkLoadedForVS
 import org.valkyrienskies.mod.common.isTickingChunk
 import org.valkyrienskies.mod.common.mcPlayer
@@ -34,7 +35,7 @@ object ChunkManagement {
             val chunkPos = ChunkPos(chunkWatchTask.chunkX, chunkWatchTask.chunkZ)
 
             val level = server.getLevelFromDimensionId(chunkWatchTask.dimensionId)!!
-            if (VS2ChunkAllocator.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+            if (level.isChunkInShipyard(chunkPos.x, chunkPos.z)) {
                 // Shipyard chunks use radius-0 tickets (level 33 = FULL status) to avoid
                 // loading ~25 neighbor chunks per ship chunk. The chunk pipeline's neighbor
                 // requirements are bypassed by MixinChunkMapShipyard.
@@ -43,7 +44,7 @@ object ChunkManagement {
                 level.chunkSource.updateChunkForced(chunkPos, true)
             }
 
-            val isShipyard = VS2ChunkAllocator.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)
+            val isShipyard = level.isChunkInShipyard(chunkPos.x, chunkPos.z)
             // Shipyard chunks use FULL status (level 33), so isTickingChunk never returns true.
             // Use isChunkLoadedForVS which accepts FULL status for shipyard chunks.
             val condition = if (isShipyard) {
@@ -90,7 +91,7 @@ object ChunkManagement {
 
             if (chunkUnwatchTask.shouldUnload) {
                 val level = server.getLevelFromDimensionId(chunkUnwatchTask.dimensionId)!!
-                if (VS2ChunkAllocator.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z)) {
+                if (level.isChunkInShipyard(chunkPos.x, chunkPos.z)) {
                     // Only release the SHIP_CHUNK ticket if the ship that owns this chunk
                     // is actually gone. If the ship still exists (just no player watcher),
                     // keep the chunk loaded — otherwise scheduled ticks, block entities,

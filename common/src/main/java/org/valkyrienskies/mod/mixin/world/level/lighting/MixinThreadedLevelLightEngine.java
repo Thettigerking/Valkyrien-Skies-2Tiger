@@ -13,6 +13,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
 
 import java.util.function.IntSupplier;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
+import org.valkyrienskies.mod.mixin.accessors.server.level.ChunkMapAccessor;
 
 /**
  * Forces the light engine to process light updates for shipyard chunks at high priority.
@@ -42,7 +44,7 @@ public abstract class MixinThreadedLevelLightEngine {
     private IntSupplier vs$forceShipyardPriority(ChunkMap instance, long chunkPosLong) {
         int x = ChunkPos.getX(chunkPosLong);
         int z = ChunkPos.getZ(chunkPosLong);
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(x, z)) {
+        if (VSGameUtilsKt.isChunkInShipyard(((ChunkMapAccessor)instance).getLevel(), x, z)) {
             return () -> VS$FULL_CHUNK_LEVEL;
         }
         return ((org.valkyrienskies.mod.mixin.accessors.server.level.ChunkMapAccessor) instance)

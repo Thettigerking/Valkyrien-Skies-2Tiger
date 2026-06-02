@@ -1,18 +1,27 @@
 package org.valkyrienskies.mod.mixin.world.chunk;
 
 import net.minecraft.server.level.ServerChunkCache;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 import org.valkyrienskies.mod.common.world.VSTicketType;
 
 @Mixin(ServerChunkCache.class)
 public class MixinServerChunkCache {
+
+    @Shadow
+    @Final
+    private ServerLevel level;
 
     /**
      * Allow shipyard chunks to be treated as "position ticking" even at ticket level 33 (FULL).
@@ -29,7 +38,7 @@ public class MixinServerChunkCache {
     private void vs$allowShipyardTicking(long pos, CallbackInfoReturnable<Boolean> cir) {
         int chunkX = ChunkPos.getX(pos);
         int chunkZ = ChunkPos.getZ(pos);
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
+        if (VSGameUtilsKt.isChunkInShipyard(level, chunkX, chunkZ)) {
             // Check if the chunk is actually loaded (FULL status)
             if (((ServerChunkCache) (Object) this).getChunkNow(chunkX, chunkZ) != null) {
                 cir.setReturnValue(true);

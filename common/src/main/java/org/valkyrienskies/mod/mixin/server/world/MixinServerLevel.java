@@ -24,6 +24,7 @@ import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -90,7 +91,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
     private void vs$allowShipyardBlockTicking(long packedChunkPos, CallbackInfoReturnable<Boolean> cir) {
         int chunkX = ChunkPos.getX(packedChunkPos);
         int chunkZ = ChunkPos.getZ(packedChunkPos);
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
+        if (VSGameUtilsKt.isChunkInShipyard(Level.class.cast(this), chunkX, chunkZ)) {
             cir.setReturnValue(true);
         }
     }
@@ -108,7 +109,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
     private void vs$allowShipyardPositionTicking(long packedPos, CallbackInfoReturnable<Boolean> cir) {
         int chunkX = ChunkPos.getX(packedPos);
         int chunkZ = ChunkPos.getZ(packedPos);
-        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
+        if (VSGameUtilsKt.isChunkInShipyard(Level.class.cast(this), chunkX, chunkZ)) {
             // Unconditional true for shipyard chunks. The getChunkNow() guard we used here
             // was returning null for chunks whose ChunkHolder hadn't promoted to visibleChunkMap
             // (common for level-33 FULL tickets), causing LevelTicks.sortContainersToTick's
@@ -240,7 +241,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
             if (worldChunk instanceof LevelChunk levelChunk) {
                 final int cx = worldChunk.getPos().x;
                 final int cz = worldChunk.getPos().z;
-                if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(cx, cz)) {
+                if (VSGameUtilsKt.isChunkInShipyard(Level.class.cast(this), cx, cz)) {
                     final ServerLevel self = ServerLevel.class.cast(this);
                     levelChunk.registerTickContainerInLevel(self);
                     self.startTickingChunk(levelChunk);
@@ -328,7 +329,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
     private void vs$keepActiveShipChunksLoaded(final net.minecraft.world.level.chunk.LevelChunk chunk,
                                                 final CallbackInfo ci) {
         final ChunkPos pos = chunk.getPos();
-        if (!VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(pos.x, pos.z)) return;
+        if (!VSGameUtilsKt.isChunkInShipyard(Level.class.cast(this), pos.x, pos.z)) return;
         final ServerLevel self = ServerLevel.class.cast(this);
         if (org.valkyrienskies.mod.common.VSGameUtilsKt.getShipManagingPos(self, pos.x, pos.z) != null) {
             ci.cancel();
@@ -364,7 +365,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
 
             // Shipyard chunks use FULL tickets and may never produce a ticking future.
             final ChunkPos cp = chunkHolder.getPos();
-            if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(cp.x, cp.z)) {
+            if (VSGameUtilsKt.isChunkInShipyard(Level.class.cast(this), cp.x, cp.z)) {
                 final LevelChunk cachedChunk = chunkSource.getChunkNow(cp.x, cp.z);
                 if (cachedChunk != null) {
                     vs$loadChunk(cachedChunk, voxelShapeUpdates);

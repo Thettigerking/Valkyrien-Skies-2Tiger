@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ChunkMap;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
 /**
  * Fast-paths shipyard chunk unloads. Two interventions; they work together.
@@ -53,12 +55,16 @@ public abstract class MixinChunkMapScheduleUnload {
     @Final
     private LongSet toDrop;
 
+    @Shadow
+    @Final
+    private ServerLevel level;
+
     @Inject(method = "scheduleUnload", at = @At("HEAD"), cancellable = true)
     private void vs$fastScheduleUnloadForShipyard(final long chunkPos, final ChunkHolder holder,
                                                   final CallbackInfo ci) {
         final int cx = ChunkPos.getX(chunkPos);
         final int cz = ChunkPos.getZ(chunkPos);
-        if (!VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(cx, cz)) return;
+        if (!VSGameUtilsKt.isChunkInShipyard(level, cx, cz)) return;
 
         // Shipyard chunks on their way out: skip the whole async save + cleanup
         // chain. The only bookkeeping we have to do before returning is the
@@ -88,7 +94,7 @@ public abstract class MixinChunkMapScheduleUnload {
             final long chunkPos = it.nextLong();
             final int cx = ChunkPos.getX(chunkPos);
             final int cz = ChunkPos.getZ(chunkPos);
-            if (!VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(cx, cz)) continue;
+            if (!VSGameUtilsKt.isChunkInShipyard(level, cx, cz)) continue;
             updatingChunkMap.remove(chunkPos);
             pendingUnloads.remove(chunkPos);
             it.remove();

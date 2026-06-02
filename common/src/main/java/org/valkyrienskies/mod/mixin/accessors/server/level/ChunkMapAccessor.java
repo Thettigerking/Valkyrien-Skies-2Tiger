@@ -5,6 +5,7 @@ import java.util.function.BooleanSupplier;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ChunkMap.DistanceManager;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.level.ChunkPos;
@@ -47,4 +48,7 @@ public interface ChunkMapAccessor {
 
     @Invoker("getChunkQueueLevel")
     java.util.function.IntSupplier callGetChunkQueueLevel(long chunkPosLong);
+
+    @Accessor("level")
+    ServerLevel getLevel();
 }
