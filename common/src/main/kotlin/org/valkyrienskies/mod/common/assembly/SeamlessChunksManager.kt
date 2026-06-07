@@ -13,9 +13,11 @@ import org.valkyrienskies.core.api.ships.ClientShip
 import org.valkyrienskies.core.api.ships.properties.ChunkClaim
 import org.valkyrienskies.core.util.pollUntilEmpty
 import org.valkyrienskies.mod.api.vsApi
+import org.valkyrienskies.mod.common.dimensionId
 import org.valkyrienskies.mod.common.getShipManagingPos
 import org.valkyrienskies.mod.common.isChunkInShipyard
 import org.valkyrienskies.mod.common.config.VSGameConfig
+import org.valkyrienskies.mod.common.shipObjectWorld
 import org.valkyrienskies.mod.common.networking.PacketRestartChunkUpdates
 import org.valkyrienskies.mod.common.networking.PacketStopChunkUpdates
 import org.valkyrienskies.mod.common.util.toMinecraft
@@ -41,6 +43,7 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
 
     private val shipQueuedUpdates = ConcurrentHashMap<ChunkClaim, ConcurrentLinkedQueue<Packet<*>>>()
     private val queuedUpdates = ConcurrentHashMap<ChunkPos, ConcurrentLinkedQueue<Packet<*>>>()
+    private val loadedShipClaims = ConcurrentHashMap.newKeySet<ChunkClaim>()
     private val stalledChunks = LongOpenHashSet()
     // Guard flag to prevent re-entrant throttling when drainDeferredBatch dispatches packets
     private var dispatching = false
@@ -66,16 +69,35 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
     }
 
     private fun onShipLoad(ship: ClientShip) {
-        val packets = shipQueuedUpdates.remove(ship.chunkClaim)
-        if (!packets.isNullOrEmpty()) {
-            logger.debug("Executing ${packets.size} deferred updates for ship ID=${ship.id} at ${ship.chunkClaim}")
-            packets.pollUntilEmpty { deferredDispatch.add(it) }
-        }
+        loadedShipClaims.add(ship.chunkClaim)
+        releaseQueuedShipUpdates(ship.chunkClaim, "ship ID=${ship.id}")
         val player = Minecraft.getInstance().player
         if (player is PlayerKnownShipsDuck) {
             player.vs_addKnownShip(ship.id)
         }
     }
+
+    private fun releaseQueuedShipUpdates(claim: ChunkClaim, reason: String) {
+        val packets = shipQueuedUpdates.remove(claim)
+        if (!packets.isNullOrEmpty()) {
+            logger.debug("Executing ${packets.size} deferred updates for $reason at $claim")
+            packets.pollUntilEmpty { deferredDispatch.add(it) }
+        }
+    }
+
+    private fun flushLoadedShipQueuedUpdates(level: ClientLevel?) {
+        if (level == null || shipQueuedUpdates.isEmpty()) return
+
+        for (ship in level.shipObjectWorld.loadedShips) {
+            if (ship.chunkClaimDimension == level.dimensionId) {
+                loadedShipClaims.add(ship.chunkClaim)
+                releaseQueuedShipUpdates(ship.chunkClaim, "loaded ship claim reconciliation")
+            }
+        }
+    }
+
+    private fun isLoadedShipClaim(claim: ChunkClaim): Boolean =
+        loadedShipClaims.contains(claim)
 
     // Drop any packets queued for a ship's claim once the ship goes away.
     // Without this, packets that arrived between the final tick-drain and
@@ -83,6 +105,7 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
     // allocates a fresh claim so they'd never be triggered — which both
     // bloats memory and costs hash lookups on every subsequent queue() call.
     private fun onShipUnload(ship: ClientShip) {
+        loadedShipClaims.remove(ship.chunkClaim)
         shipQueuedUpdates.remove(ship.chunkClaim)
     }
 
@@ -153,6 +176,7 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
      * light engine optimizations, etc.).
      */
     fun drainDeferredBatch() {
+        flushLoadedShipQueuedUpdates(Minecraft.getInstance().level)
         if (deferredDispatch.isEmpty()) return
         dispatching = true
         inBulkDrain = true
@@ -281,6 +305,7 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
         queuedUpdates.clear()
         shipQueuedUpdates.clear()
         deferredDispatch.clear()
+        loadedShipClaims.clear()
     }
 
     /**
@@ -292,21 +317,32 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
         // note, this will get re-called when we're processing the shipQueuedUpdates queue,
         // so if any updates in there are actually still stalled by a [PacketStopChunkUpdates] it will
         // be added to the queuedUpdates queue here (and vice versa)
+        val chunkKey = ChunkPos.asLong(chunkX, chunkZ)
+        val inShipyard = level.isChunkInShipyard(chunkX, chunkZ)
 
         // The chunk is in the shipyard, but we don't know what ship
-        if (level.isChunkInShipyard(chunkX, chunkZ) &&
+        if (inShipyard &&
             level.getShipManagingPos(chunkX, chunkZ) == null
         ) {
-            logger.debug("Deferring ship update at <$chunkX, $chunkZ> for ${packet::class}")
-            shipQueuedUpdates
-                .computeIfAbsent(vsCore.newChunkClaimFromChunkPos(chunkX, chunkZ)) { ConcurrentLinkedQueue() }
-                .add(packet)
+            val claim = vsCore.newChunkClaimFromChunkPos(chunkX, chunkZ)
+            if (isLoadedShipClaim(claim)) {
+                // The ship-load event already happened; avoid stranding packets behind a one-shot callback.
+                if (!dispatching && !stalledChunks.contains(chunkKey)) {
+                    deferredDispatch.add(packet)
+                    return true
+                }
+            } else {
+                logger.debug("Deferring ship update at <$chunkX, $chunkZ> for ${packet::class}")
+                shipQueuedUpdates
+                    .computeIfAbsent(claim) { ConcurrentLinkedQueue() }
+                    .add(packet)
 
-            return true
+                return true
+            }
         }
 
         // The chunk prevented from updating by a [PacketStopChunkUpdates]
-        if (stalledChunks.contains(ChunkPos.asLong(chunkX, chunkZ))) {
+        if (stalledChunks.contains(chunkKey)) {
             logger.debug("Deferring update at <$chunkX, $chunkZ> for ${packet::class}")
             queuedUpdates
                 .computeIfAbsent(ChunkPos(chunkX, chunkZ)) { ConcurrentLinkedQueue() }
@@ -322,7 +358,7 @@ class SeamlessChunksManager(private val listener: ClientPacketListener) {
         // Skip this check when we're dispatching from the deferred queue (re-entrant call).
         if (!dispatching &&
             packet is ClientboundLevelChunkWithLightPacket &&
-            level.isChunkInShipyard(chunkX, chunkZ)
+            inShipyard
         ) {
             deferredDispatch.add(packet)
             return true
