@@ -79,55 +79,49 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
     public abstract int sectionsToVillage(SectionPos arg);
 
 
-//    /**
-//     * Allow scheduled ticks and block entity ticking in shipyard chunks that were loaded only to
-//     * FULL status through SHIP_CHUNK.
-//     *
-//     * Forge's Level.tickBlockEntities() calls shouldTickBlocksAt(BlockPos) before ticking each
-//     * block entity. Ship chunks use level 33 (FULL) tickets to minimize neighbor loading, but
-//     * shouldTickBlocksAt requires level ≤ 32. Without this override, furnaces/hoppers/etc won't
-//     * tick on ships.
-//     */
-//    @Inject(method = "shouldTickBlocksAt(J)Z", at = @At("HEAD"), cancellable = true)
-//    private void vs$allowShipyardBlockTicking(long packedPos, CallbackInfoReturnable<Boolean> cir) {
-//        // Try both BlockPos and ChunkPos decodings since Forge may use either format
-//        int chunkX, chunkZ;
-//        // First try BlockPos encoding (used by tickBlockEntities)
-//        chunkX = BlockPos.getX(packedPos) >> 4;
-//        chunkZ = BlockPos.getZ(packedPos) >> 4;
-//        if (org.valkyrienskies.mod.common.VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
-//            if (chunkSource.getChunkNow(chunkX, chunkZ) != null) {
-//                cir.setReturnValue(true);
-//                return;
-//            }
-//        }
-//        // Also try ChunkPos encoding (used by LevelTicks for scheduled ticks)
-//        chunkX = ChunkPos.getX(packedPos);
-//        chunkZ = ChunkPos.getZ(packedPos);
-//        if (org.valkyrienskies.mod.common.VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
-//            if (chunkSource.getChunkNow(chunkX, chunkZ) != null) {
-//                cir.setReturnValue(true);
-//            }
-//        }
-//    }
-//
-//    /**
-//     * Allow FULL-only shipyard chunks to pass the LevelTicks tick-processing gate.
-//     *
-//     * LevelTicks uses isPositionTickingWithEntitiesLoaded as its tickCheck predicate.
-//     * This method requires BOTH areEntitiesLoaded() AND isPositionTicking() to be true.
-//     * Ship chunks may not have their entity sections loaded through the normal entity
-//     * management pipeline, so areEntitiesLoaded() returns false, which prevents ALL
-//     * scheduled ticks (repeaters, observers, torches, buttons) from being processed.
-//     */
-//    @Inject(method = "isPositionTickingWithEntitiesLoaded", at = @At("HEAD"), cancellable = true)
-//    private void vs$allowShipyardPositionTicking(long packedPos, CallbackInfoReturnable<Boolean> cir) {
-//        int chunkX = ChunkPos.getX(packedPos);
-//        int chunkZ = ChunkPos.getZ(packedPos);
-//        if (VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) {
-//            cir.setReturnValue(true);
-//        }
-//    }
+    /**
+     * Allow scheduled ticks and block entity ticking for active ship chunks loaded through
+     * radius-zero SHIP_CHUNK tickets. This is gated because vanilla forced tickets are still
+     * the compatibility-safe default.
+     */
+    @Inject(method = "shouldTickBlocksAt(J)Z", at = @At("HEAD"), cancellable = true)
+    private void vs$allowRadiusZeroShipyardBlockTicking(long packedPos, CallbackInfoReturnable<Boolean> cir) {
+        // Try both BlockPos and ChunkPos decodings since callers use both packed formats.
+        int chunkX = BlockPos.getX(packedPos) >> 4;
+        int chunkZ = BlockPos.getZ(packedPos) >> 4;
+        if (vs$isRadiusZeroActiveShipChunk(chunkX, chunkZ)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
+        chunkX = ChunkPos.getX(packedPos);
+        chunkZ = ChunkPos.getZ(packedPos);
+        if (vs$isRadiusZeroActiveShipChunk(chunkX, chunkZ)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * LevelTicks requires entity-loaded position ticking before scheduled ticks run. Radius-zero
+     * ship chunks intentionally do not get vanilla ENTITY_TICKING tickets, so provide the same
+     * gate only for loaded chunks owned by live ships while the experiment is enabled.
+     */
+    @Inject(method = "isPositionTickingWithEntitiesLoaded", at = @At("HEAD"), cancellable = true)
+    private void vs$allowRadiusZeroShipyardPositionTicking(long packedPos, CallbackInfoReturnable<Boolean> cir) {
+        final int chunkX = ChunkPos.getX(packedPos);
+        final int chunkZ = ChunkPos.getZ(packedPos);
+        if (vs$isRadiusZeroActiveShipChunk(chunkX, chunkZ)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Unique
+    private boolean vs$isRadiusZeroActiveShipChunk(final int chunkX, final int chunkZ) {
+        if (!VSGameConfig.SERVER.getPerformance().getUseRadiusZeroShipChunkTickets()) return false;
+        if (!VS2ChunkAllocator.INSTANCE.isChunkInShipyardCompanion(chunkX, chunkZ)) return false;
+        if (chunkSource.getChunkNow(chunkX, chunkZ) == null) return false;
+        return VSGameUtilsKt.getShipManagingPos(ServerLevel.class.cast(this), chunkX, chunkZ) != null;
+    }
 
     // Map from ChunkPos to the list of voxel chunks that chunk owns
     @Unique
@@ -234,8 +228,8 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
         if (!vs$knownChunks.containsKey(chunkPosLong)) {
             // FULL-only shipyard chunks never reach BLOCK_TICKING status in vanilla,
             // so two critical callbacks are missed:
-            // 1. registerTickContainerInLevel() — adds tick containers to LevelTicks
-            // 2. startTickingChunk() → unpackTicks() — moves saved ticks from pendingTicks
+            // 1. registerTickContainerInLevel() â€” adds tick containers to LevelTicks
+            // 2. startTickingChunk() â†’ unpackTicks() â€” moves saved ticks from pendingTicks
             //    to the active tickQueue so they actually fire
             // Without both, scheduled ticks (repeaters, torches, observers) freeze on reload.
             if (worldChunk instanceof LevelChunk levelChunk) {

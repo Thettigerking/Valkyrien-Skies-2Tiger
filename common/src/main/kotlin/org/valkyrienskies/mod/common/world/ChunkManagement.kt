@@ -37,9 +37,16 @@ object ChunkManagement {
             val chunkPos = ChunkPos(chunkWatchTask.chunkX, chunkWatchTask.chunkZ)
 
             val level = server.getLevelFromDimensionId(chunkWatchTask.dimensionId)!!
-            // Active ship chunks must stay on vanilla forced tickets so gameplay keeps
-            // random ticks, block ticks, and entity ticks.
-            level.chunkSource.updateChunkForced(chunkPos, true)
+            if (VSGameConfig.SERVER.Performance.useRadiusZeroShipChunkTickets) {
+                // Experimental path: load only the exact active ship chunk. MixinDistanceManager
+                // treats this ticket as force-ticking without lowering the ticket level and
+                // reintroducing the vanilla chunk-loading ring.
+                level.chunkSource.addRegionTicket(VSTicketType.SHIP_CHUNK, chunkPos, 0, chunkPos)
+            } else {
+                // Stable path: vanilla forced tickets preserve ticking behavior, but they also
+                // create Minecraft's normal concentric chunk-loading ring around each ship chunk.
+                level.chunkSource.updateChunkForced(chunkPos, true)
+            }
             (level as? VSServerLevel)?.addPendingForcedChunk(chunkPos.x, chunkPos.z)
 
             level.server.executeIf({ level.isTickingChunk(chunkPos) }) {
@@ -70,8 +77,12 @@ object ChunkManagement {
                 val isLiveShipChunk =
                     VS2ChunkAllocator.isChunkInShipyardCompanion(chunkPos.x, chunkPos.z) &&
                         shipWorld.allShips.getById(chunkUnwatchTask.ship.id) != null
-                if (!isLiveShipChunk) {
-                    level.chunkSource.updateChunkForced(chunkPos, false)
+                    if (!isLiveShipChunk) {
+                        if (VSGameConfig.SERVER.Performance.useRadiusZeroShipChunkTickets) {
+                            level.chunkSource.removeRegionTicket(VSTicketType.SHIP_CHUNK, chunkPos, 0, chunkPos)
+                        } else {
+                            level.chunkSource.updateChunkForced(chunkPos, false)
+                        }
                 }
             }
 
@@ -85,7 +96,7 @@ object ChunkManagement {
     }
 
     /**
-     * Returns the list of pending tracking updates (currently empty — stub for tests).
+     * Returns the list of pending tracking updates (currently empty â€” stub for tests).
      */
     @JvmStatic
     fun getPendingTrackingUpdates(): List<Any> = emptyList()

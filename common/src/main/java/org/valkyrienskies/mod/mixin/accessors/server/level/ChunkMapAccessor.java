@@ -32,6 +32,9 @@ public interface ChunkMapAccessor {
     @Invoker("getChunks")
     Iterable<ChunkHolder> callGetChunks();
 
+    @Invoker("anyPlayerCloseEnoughForSpawning")
+    boolean callAnyPlayerCloseEnoughForSpawning(ChunkPos chunkPos);
+
     @Invoker("getVisibleChunkIfPresent")
     ChunkHolder callGetVisibleChunkIfPresent(long l);
 

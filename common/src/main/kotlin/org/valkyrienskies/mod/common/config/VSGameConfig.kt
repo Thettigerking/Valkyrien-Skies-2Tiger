@@ -137,13 +137,13 @@ object VSGameConfig {
         @ConfigEntry(description = "Use a custom vanilla shader for rendering ship chunks, improving lighting on tilted and upside down ships. Also enables the directional-shade fix for the sodium/embeddium ship renderer.")
         var betterVanillaShipShading = false
 
-        @ConfigEntry(description = "Sample the world biome at the ship's actual rendered position so grass/leaves/water on ships show the correct biome color (sodium/embeddium only). Disable for a small perf gain — ship blocks fall back to whatever the chunk mesher baked.")
+        @ConfigEntry(description = "Sample the world biome at the ship's actual rendered position so grass/leaves/water on ships show the correct biome color (sodium/embeddium only). Disable for a small perf gain â€” ship blocks fall back to whatever the chunk mesher baked.")
         var dynamicShipBiomeTinting = false
 
-        @ConfigEntry(description = "Sample world block/sky light at the ship's rendered position so torches and sunlight in the world correctly light the ship (sodium/embeddium only). Disable for a moderate perf gain — ship blocks fall back to the shipyard's baked lightmap.")
+        @ConfigEntry(description = "Sample world block/sky light at the ship's rendered position so torches and sunlight in the world correctly light the ship (sodium/embeddium only). Disable for a moderate perf gain â€” ship blocks fall back to the shipyard's baked lightmap.")
         var dynamicShipLighting = false
 
-        @ConfigEntry(description = "Project ships into the world's lighting at render time so ships occlude sunlight on the ground beneath them and ship-internal torches illuminate nearby world blocks (sodium/embeddium only). Experimental — overrides sodium's stock world-chunk shader. Disable for the default vanilla behavior where ships don't affect world lighting.")
+        @ConfigEntry(description = "Project ships into the world's lighting at render time so ships occlude sunlight on the ground beneath them and ship-internal torches illuminate nearby world blocks (sodium/embeddium only). Experimental â€” overrides sodium's stock world-chunk shader. Disable for the default vanilla behavior where ships don't affect world lighting.")
         var dynamicShipToWorldLighting = false
 
     }
@@ -243,6 +243,13 @@ object VSGameConfig {
         }
 
         class PERFORMANCE {
+            @ConfigEntry(
+                description = "Experimental: load active ship chunks with VS radius-zero tickets instead of vanilla forced tickets. " +
+                    "This avoids Minecraft's forced-ticket chunk ring around each ship chunk, but relies on VS shipyard ticking " +
+                    "mixins for block/entity/scheduled ticking parity. Disabled by default because mod compatibility is still risky."
+            )
+            var useRadiusZeroShipChunkTickets = false
+
             @ConfigEntry(
                 description = "Maximum number of ship chunk watch tasks processed per server tick.",
                 min = 1.0,
