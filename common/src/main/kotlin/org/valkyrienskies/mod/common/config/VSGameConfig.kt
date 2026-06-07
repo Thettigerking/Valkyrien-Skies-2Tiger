@@ -248,7 +248,7 @@ object VSGameConfig {
                     "This avoids Minecraft's forced-ticket chunk ring around each ship chunk, but relies on VS shipyard ticking " +
                     "mixins for block/entity/scheduled ticking parity. Disabled by default because mod compatibility is still risky."
             )
-            var useRadiusZeroShipChunkTickets = false
+            var useRadiusZeroShipChunkTickets = true
 
             @ConfigEntry(
                 description = "Maximum number of ship chunk watch tasks processed per server tick.",
