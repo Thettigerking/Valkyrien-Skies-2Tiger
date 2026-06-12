@@ -166,6 +166,7 @@
     "feature.air_pockets.world.level.block.MixinAbstractCauldronBlock",
     "feature.air_pockets.world.level.block.MixinBaseFireBlock",
     "feature.air_pockets.world.level.block.MixinFarmBlock",
+    "feature.batch_assembly_fast_path.MixinChunkMap",
     "feature.bed_fix.MixinPlayer",
     "feature.bed_fix.MixinServerPlayer",
     "feature.block_placement.MixinBlockItem",

@@ -137,13 +137,13 @@ object VSGameConfig {
         @ConfigEntry(description = "Use a custom vanilla shader for rendering ship chunks, improving lighting on tilted and upside down ships. Also enables the directional-shade fix for the sodium/embeddium ship renderer.")
         var betterVanillaShipShading = false
 
-        @ConfigEntry(description = "Sample the world biome at the ship's actual rendered position so grass/leaves/water on ships show the correct biome color (sodium/embeddium only). Disable for a small perf gain â€” ship blocks fall back to whatever the chunk mesher baked.")
+        @ConfigEntry(description = "Sample the world biome at the ship's actual rendered position so grass/leaves/water on ships show the correct biome color (sodium/embeddium only). Disable for a small perf gain — ship blocks fall back to whatever the chunk mesher baked.")
         var dynamicShipBiomeTinting = false
 
-        @ConfigEntry(description = "Sample world block/sky light at the ship's rendered position so torches and sunlight in the world correctly light the ship (sodium/embeddium only). Disable for a moderate perf gain â€” ship blocks fall back to the shipyard's baked lightmap.")
+        @ConfigEntry(description = "Sample world block/sky light at the ship's rendered position so torches and sunlight in the world correctly light the ship (sodium/embeddium only). Disable for a moderate perf gain — ship blocks fall back to the shipyard's baked lightmap.")
         var dynamicShipLighting = false
 
-        @ConfigEntry(description = "Project ships into the world's lighting at render time so ships occlude sunlight on the ground beneath them and ship-internal torches illuminate nearby world blocks (sodium/embeddium only). Experimental â€” overrides sodium's stock world-chunk shader. Disable for the default vanilla behavior where ships don't affect world lighting.")
+        @ConfigEntry(description = "Project ships into the world's lighting at render time so ships occlude sunlight on the ground beneath them and ship-internal torches illuminate nearby world blocks (sodium/embeddium only). Experimental — overrides sodium's stock world-chunk shader. Disable for the default vanilla behavior where ships don't affect world lighting.")
         var dynamicShipToWorldLighting = false
 
     }
@@ -244,13 +244,6 @@ object VSGameConfig {
 
         class PERFORMANCE {
             @ConfigEntry(
-                description = "Experimental: load active ship chunks with VS radius-zero tickets instead of vanilla forced tickets. " +
-                    "This avoids Minecraft's forced-ticket chunk ring around each ship chunk, but relies on VS shipyard ticking " +
-                    "mixins for block/entity/scheduled ticking parity. Disabled by default because mod compatibility is still risky."
-            )
-            var useRadiusZeroShipChunkTickets = true
-
-            @ConfigEntry(
                 description = "Maximum number of ship chunk watch tasks processed per server tick.",
                 min = 1.0,
                 max = 4096.0
@@ -265,11 +258,25 @@ object VSGameConfig {
             var shipChunkUnwatchTasksPerTick = 256
 
             @ConfigEntry(
-                description = "Maximum number of ship terrain chunks registered with VS core per server level tick.",
+                description = "Minimum number of ship terrain chunks registered with VS core per server level " +
+                    "tick. This acts as the floor of the time-based ingestion budget (see " +
+                    "shipTerrainChunkLoadMillisPerTick): at least this many chunks are processed every tick, " +
+                    "even when the time budget is already exhausted, so terrain ingestion always makes progress.",
                 min = 1.0,
                 max = 4096.0
             )
             var shipTerrainChunkLoadsPerTick = 64
+
+            @ConfigEntry(
+                description = "Wall-clock budget in milliseconds for registering ship terrain chunks with VS " +
+                    "core each server level tick. After the shipTerrainChunkLoadsPerTick floor is met, " +
+                    "ingestion continues until this much time has elapsed. On ticks with headroom this lets " +
+                    "hundreds of chunks activate physics at once instead of serializing large fleets over " +
+                    "many seconds, while overloaded ticks stay bounded near the floor.",
+                min = 0.0,
+                max = 100.0
+            )
+            var shipTerrainChunkLoadMillisPerTick = 2
 
             @ConfigEntry(
                 description = "Maximum number of ship terrain chunks unregistered from VS core per server level tick.",
@@ -277,6 +284,16 @@ object VSGameConfig {
                 max = 4096.0
             )
             var shipTerrainChunkUnloadsPerTick = 64
+
+            @ConfigEntry(
+                description = "Maximum number of ship chunk packets sent to players per server tick. Chunk " +
+                    "watch tasks queue their packet sends and a budgeted drain executes them, so a wave of " +
+                    "chunk-ticket promotions completing in the same tick cannot serialize thousands of chunk " +
+                    "packets in a single tick.",
+                min = 1.0,
+                max = 4096.0
+            )
+            var shipChunkSendsPerTick = 256
 
             @ConfigEntry(
                 description = "How often (in ticks) the natural-mob-spawn pass runs for each ship. " +
@@ -287,6 +304,13 @@ object VSGameConfig {
                 max = 200.0
             )
             var shipMobSpawnIntervalTicks = 1
+
+            @ConfigEntry(
+                description = "Compute per-ship drag/lift debug info every server tick. This data only feeds " +
+                    "the F3+B ship drag/lift debug renderer (singleplayer only), but costs rebuilding two maps " +
+                    "over every loaded ship each tick, so leave it off unless you are debugging ship drag."
+            )
+            var computeDragDebugInfo = false
         }
 
 

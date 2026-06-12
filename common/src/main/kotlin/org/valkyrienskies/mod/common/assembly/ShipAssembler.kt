@@ -480,29 +480,61 @@ object ShipAssembler {
         }
 
         // Pre-load all destination chunks.
-        // Uses addRegionTicket to schedule all chunk loads concurrently, then runs the
-        // distance manager + main thread tasks until all chunks reach FULL status.
-        // This is much faster than calling level.getChunk() 1000 times sequentially,
-        // because the chunk pipeline processes multiple chunks on its worker thread pool.
         val preloadStart = System.currentTimeMillis()
         val chunkSource = level.chunkSource
 
-        // Add tickets for all dest chunks first (non-blocking, just queues them)
-        for (cp in allDestChunkPoses) {
-            chunkSource.addRegionTicket(
-                org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
-            )
+        BatchAssemblyFastPath.registerAll(allDestChunkPoses)
+        try {
+            for (cp in allDestChunkPoses) {
+                chunkSource.addRegionTicket(
+                    org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
+                )
+            }
+
+            val chunkSourceAccessor = chunkSource as
+                org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
+            chunkSourceAccessor.callRunDistanceManagerUpdates()
+
+            val preloadFutures = allDestChunkPoses.map { cp ->
+                chunkSourceAccessor.callGetChunkFutureMainThread(
+                    cp.x, cp.z, net.minecraft.world.level.chunk.ChunkStatus.FULL, false
+                )
+            }
+
+            val allChunksLoaded =
+                java.util.concurrent.CompletableFuture.allOf(*preloadFutures.toTypedArray())
+            val preloadDeadline = System.currentTimeMillis() + 60_000L
+            while (!allChunksLoaded.isDone) {
+                if (!chunkSource.pollTask()) {
+                    if (System.currentTimeMillis() > preloadDeadline) {
+                        ASSEMBLY_LOGGER.error(
+                            "Batch assembly preload timed out after 60s with " +
+                                "${preloadFutures.count { !it.isDone }}/${preloadFutures.size}" +
+                                " dest chunks not FULL! Proceeding to the verification pass."
+                        )
+                        break
+                    }
+                    java.util.concurrent.locks.LockSupport.parkNanos(100_000L)
+                }
+            }
+        } finally {
+            BatchAssemblyFastPath.unregisterAll(allDestChunkPoses)
         }
 
-        // Process tickets and wait for all chunks to reach FULL status.
-        // runDistanceManagerUpdates processes the tickets we just added, creating
-        // ChunkHolders and starting their pipelines. Then getChunk blocks on each
-        // one — but since all pipelines are already running concurrently on the worker
-        // thread pool, most will complete quickly.
-        (chunkSource as org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor)
-            .callRunDistanceManagerUpdates()
         for (cp in allDestChunkPoses) {
-            level.getChunk(cp.x, cp.z)
+            if (chunkSource.getChunkNow(cp.x, cp.z) == null) {
+                ASSEMBLY_LOGGER.error(
+                    "Batch assembly preload: dest chunk $cp failed to reach FULL status via " +
+                        "the fast path, falling back to a blocking vanilla load"
+                )
+                level.getChunk(cp.x, cp.z)
+            }
+        }
+
+        val preloadLightEngine = chunkSource.lightEngine
+        for (cp in allDestChunkPoses) {
+            preloadLightEngine.setLightEnabled(cp, true)
+            chunkSource.getChunkNow(cp.x, cp.z)?.setLightCorrect(true)
         }
 
         val preloadMs = System.currentTimeMillis() - preloadStart
@@ -524,6 +556,11 @@ object ShipAssembler {
 
             if (filteredBlocksWithState.isEmpty()) {
                 level.shipObjectWorld.deleteShip(pending.toShip)
+                for (cp in pending.destChunks) {
+                    level.chunkSource.removeRegionTicket(
+                        org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
+                    )
+                }
                 continue
             }
 

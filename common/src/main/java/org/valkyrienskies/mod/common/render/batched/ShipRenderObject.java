@@ -13,18 +13,26 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import org.valkyrienskies.core.api.ships.ClientShip;
+import org.valkyrienskies.mod.compat.sodium.light.VsShipEmitterList;
 
 public final class ShipRenderObject implements AutoCloseable {
+
+    private static final double[] NO_EMITTERS = new double[0];
 
     public final ClientShip ship;
 
     private ShipMesh mesh = null;
+    private boolean meshEmpty = true;
 
     private final LongOpenHashSet dirtySections = new LongOpenHashSet();
 
     private long lastActiveChunkSignature = Long.MIN_VALUE;
     private int lastActiveChunkCount = -1;
+    private long lastChunkPollGameTime = Long.MIN_VALUE;
     private boolean built = false;
+
+    private double[] cachedShipyardEmitters = NO_EMITTERS;
+    private volatile boolean emittersDirty = true;
 
     private final List<BlockEntity> blockEntities = new ArrayList<>();
     private boolean blockEntitiesDirty = true;
@@ -38,7 +46,18 @@ public final class ShipRenderObject implements AutoCloseable {
     }
 
     public boolean isEmpty() {
-        return mesh == null || mesh.isEmpty();
+        return meshEmpty;
+    }
+
+    public double[] getShipyardEmitters(final ClientLevel level) {
+        if (emittersDirty) {
+            if (ship.getShipAABB() == null) {
+                return NO_EMITTERS;
+            }
+            emittersDirty = false;
+            cachedShipyardEmitters = VsShipEmitterList.scanShipEmitters(level, ship);
+        }
+        return cachedShipyardEmitters;
     }
 
     public List<BlockEntity> getBlockEntities(final ClientLevel level) {
@@ -57,32 +76,40 @@ public final class ShipRenderObject implements AutoCloseable {
         synchronized (dirtySections) {
             dirtySections.add(SectionPos.asLong(sx, sy, sz));
         }
+        emittersDirty = true;
     }
 
     public boolean ensureCompiled(final ClientLevel level, final BlockRenderDispatcher dispatcher,
         final ShipSectionCompiler compiler, final boolean incrementalBudgetAvailable) {
 
-        final long[] signature = {0L};
-        final int[] count = {0};
-        ship.getActiveChunksSet().forEach((x, z) -> {
-            final long key = ChunkPos.asLong(x, z);
-            count[0]++;
-            signature[0] += key * 0x9E3779B97F4A7C15L;
-            signature[0] ^= Long.rotateLeft(key, 32);
-        });
-
-        final boolean structuralChange =
-            !built || count[0] != lastActiveChunkCount || signature[0] != lastActiveChunkSignature;
+        final long gameTime = level.getGameTime();
+        boolean structuralChange = false;
+        if (!built || gameTime != lastChunkPollGameTime) {
+            lastChunkPollGameTime = gameTime;
+            final long[] signature = {0L};
+            final int[] count = {0};
+            ship.getActiveChunksSet().forEach((x, z) -> {
+                final long key = ChunkPos.asLong(x, z);
+                count[0]++;
+                signature[0] += key * 0x9E3779B97F4A7C15L;
+                signature[0] ^= Long.rotateLeft(key, 32);
+            });
+            structuralChange =
+                !built || count[0] != lastActiveChunkCount || signature[0] != lastActiveChunkSignature;
+            if (structuralChange) {
+                lastActiveChunkSignature = signature[0];
+                lastActiveChunkCount = count[0];
+            }
+        }
 
         if (structuralChange) {
             fullRemesh(level, dispatcher, compiler);
             synchronized (dirtySections) {
                 dirtySections.clear();
             }
-            lastActiveChunkSignature = signature[0];
-            lastActiveChunkCount = count[0];
             built = true;
             blockEntitiesDirty = true;
+            emittersDirty = true;
             return false;
         }
 
@@ -127,6 +154,7 @@ public final class ShipRenderObject implements AutoCloseable {
 
         final ShipMesh old = this.mesh;
         this.mesh = newMesh;
+        this.meshEmpty = newMesh == null || newMesh.isEmpty();
         if (old != null) {
             old.close();
         }
@@ -138,5 +166,6 @@ public final class ShipRenderObject implements AutoCloseable {
             mesh.close();
             mesh = null;
         }
+        meshEmpty = true;
     }
 }
