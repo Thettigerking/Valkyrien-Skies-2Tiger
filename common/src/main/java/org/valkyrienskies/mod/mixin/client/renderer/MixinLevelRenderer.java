@@ -140,6 +140,9 @@ public abstract class MixinLevelRenderer {
     private boolean isInShipyardBorder(LevelRenderer instance, BlockPos blockPos, Operation<Boolean> original){
         if(original.call(instance, blockPos)) return true;
         if(VSGameUtilsKt.isBlockInShipyard(level, blockPos)) {
+            if (VSGameUtilsKt.getLoadedShipManagingPos(level, blockPos) != null) {
+                return true;
+            }
             BlockPos blockPos1 = blockPos.offset(-1, -1, -1);
             BlockPos blockPos2 = blockPos.offset(1, 1, 1);
             for(BlockPos neighbor : BlockPos.betweenClosed(blockPos1, blockPos2)) {

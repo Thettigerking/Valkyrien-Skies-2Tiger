@@ -311,6 +311,16 @@ object VSGameConfig {
                     "over every loaded ship each tick, so leave it off unless you are debugging ship drag."
             )
             var computeDragDebugInfo = false
+
+            @ConfigEntry(
+                description = "EXPERIMENTAL. Load active ship chunks with radius-zero SHIP_CHUNK tickets " +
+                    "(level 33 / FULL) instead of vanilla FORCED tickets (level 31), which avoids the " +
+                    "propagated FULL chunk ring (~25-45 extra loaded chunks per ship). When enabled, " +
+                    "compatibility shims report those FULL-only chunks as ticking and run their block/" +
+                    "random tick pass directly. Leave off unless you are testing the reduced-chunk-footprint " +
+                    "ship loading."
+            )
+            var useRadiusZeroShipChunkTickets = false
         }
 
 

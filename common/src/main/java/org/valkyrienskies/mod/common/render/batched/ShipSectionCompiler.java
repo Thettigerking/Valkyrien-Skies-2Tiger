@@ -101,21 +101,28 @@ public final class ShipSectionCompiler {
                             }
 
                             if (hasModel) {
-                                final RenderType blockLayer = ItemBlockRenderTypes.getChunkRenderType(state);
-                                if (blockLayer == translucentLayer) {
-                                    final BufferBuilder builder =
-                                        beginSectionTranslucent(translucentLayer, startedTranslucent);
-                                    startedTranslucent = true;
-                                    poseStack.pushPose();
-                                    poseStack.translate(lx, ly, lz);
-                                    dispatcher.renderBatched(state, scratchPos, renderView, poseStack, builder, true, random);
-                                    poseStack.popPose();
-                                } else {
-                                    final BufferBuilder builder = beginOpaque(blockLayer, startedOpaque);
-                                    poseStack.pushPose();
-                                    poseStack.translate(offX + lx, offY + ly, offZ + lz);
-                                    dispatcher.renderBatched(state, scratchPos, renderView, poseStack, builder, true, random);
-                                    poseStack.popPose();
+                                final Object modelData = BatchedModelRenderer.INSTANCE
+                                    .getModelData(renderView, level, scratchPos, state);
+                                random.setSeed(state.getSeed(scratchPos));
+                                for (final RenderType blockLayer : BatchedModelRenderer.INSTANCE
+                                    .getRenderTypes(dispatcher, state, random, modelData)) {
+                                    if (blockLayer == translucentLayer) {
+                                        final BufferBuilder builder =
+                                            beginSectionTranslucent(translucentLayer, startedTranslucent);
+                                        startedTranslucent = true;
+                                        poseStack.pushPose();
+                                        poseStack.translate(lx, ly, lz);
+                                        BatchedModelRenderer.INSTANCE.renderModel(dispatcher, state, scratchPos,
+                                            renderView, poseStack, builder, true, random, modelData, blockLayer);
+                                        poseStack.popPose();
+                                    } else {
+                                        final BufferBuilder builder = beginOpaque(blockLayer, startedOpaque);
+                                        poseStack.pushPose();
+                                        poseStack.translate(offX + lx, offY + ly, offZ + lz);
+                                        BatchedModelRenderer.INSTANCE.renderModel(dispatcher, state, scratchPos,
+                                            renderView, poseStack, builder, true, random, modelData, blockLayer);
+                                        poseStack.popPose();
+                                    }
                                 }
                             }
                         }
