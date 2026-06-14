@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager;
 
 @Mixin(Camera.class)
 public abstract class MixinCamera {
@@ -73,9 +72,7 @@ public abstract class MixinCamera {
             VSGameUtilsKt.getShipsIntersecting(level, cameraAABB).iterator().hasNext()
                 || VSGameUtilsKt.getShipManagingPos(level, origX, origY, origZ) != null;
 
-        if (anyShipsNearCamera
-            && !ShipWaterPocketManager.isWorldPosInShipAirPocket(level, origX, origY, origZ)
-            && !ShipWaterPocketManager.isWorldPosInShipWorldFluidSuppressionZone(level, origX, origY, origZ)) {
+        if (anyShipsNearCamera) {
             final FluidState[] fluidState = {vanillaFluid};
             VSGameUtilsKt.transformToNearbyShipsAndWorld(level, origX, origY, origZ, 1,
                 (x, y, z) -> {

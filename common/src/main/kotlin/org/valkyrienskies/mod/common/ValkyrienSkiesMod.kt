@@ -24,8 +24,6 @@ import org.valkyrienskies.core.api.util.PhysTickOnly
 import org.valkyrienskies.core.api.world.properties.DimensionId
 import org.valkyrienskies.core.internal.VsiCore
 import org.valkyrienskies.core.internal.VsiCoreClient
-import org.valkyrienskies.mod.air_pockets.client.ShipWaterPocketCurrentShipRenderContext
-import org.valkyrienskies.mod.air_pockets.client.ShipWaterPocketExternalWaterCullRenderContext
 import org.valkyrienskies.mod.api.BlockEntityPhysicsListener
 import org.valkyrienskies.mod.api.EntityPhysicsListener
 import org.valkyrienskies.mod.api.SeatedControllingPlayer
@@ -231,23 +229,6 @@ object ValkyrienSkiesMod {
 
     @JvmStatic
     fun initClient() {
-        VSGameEvents.renderShip.on {
-            ShipWaterPocketExternalWaterCullRenderContext.beginShipRender()
-            ShipWaterPocketCurrentShipRenderContext.push(it.ship.id, false)
-        }
-        VSGameEvents.postRenderShip.on {
-            ShipWaterPocketCurrentShipRenderContext.pop()
-            ShipWaterPocketExternalWaterCullRenderContext.endShipRender()
-        }
-
-        VSGameEvents.renderShipSodium.on {
-            ShipWaterPocketExternalWaterCullRenderContext.beginShipRender()
-            ShipWaterPocketCurrentShipRenderContext.push(it.ship.id, true)
-        }
-        VSGameEvents.postRenderShipSodium.on {
-            ShipWaterPocketCurrentShipRenderContext.pop()
-            ShipWaterPocketExternalWaterCullRenderContext.endShipRender()
-        }
     }
 
 }

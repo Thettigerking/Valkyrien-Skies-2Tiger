@@ -28,9 +28,6 @@ object VSGameConfig {
         @ConfigCategory(title = "Connectivity")
         val Connectivity = CONNECTIVITY()
 
-        @ConfigCategory(title = "Underwater")
-        val Underwater = UNDERWATER()
-
         @ConfigCategory(title = "Performance")
         val Performance = PERFORMANCE()
 
@@ -78,27 +75,6 @@ object VSGameConfig {
             var enableClientConnectivity = false
         }
 
-        class UNDERWATER {
-            @ConfigEntry(description = "Enable the flat-face overlay of fluids outside of ships")
-            var enableFluidOverlay = true
-
-            @ConfigEntry(description = "Enable the custom fog shader for fluids outside of ships")
-            var enableCustomFluidFog = true
-
-            @ConfigEntry(description = "Fade overlay when camera is in custom fog")
-            var fadeFluidOverlayInCustomFog = true
-
-            //todo: probably data-drive this and lava or just fluids in general
-            @ConfigEntry(description = "Custom water fog density")
-            var waterFogDensity = 0.045f
-
-            @ConfigEntry(description = "Custom lava fog density")
-            var lavaFogDensity = 0.45f
-
-            @ConfigEntry(description = "Custom fog effected by vanilla fog modifiers (Water Breathing, Fire Resist, Conduits)")
-            var fogEffects = true
-        }
-
         class PERFORMANCE {
             @ConfigEntry(
                 description = "Base per-frame time budget, in milliseconds, for applying deferred ship chunk packets on the client.",
@@ -127,10 +103,20 @@ object VSGameConfig {
                 max = 1024.0
             )
             var shipChunkUnloadBatchSize = 64
+
+            @ConfigEntry(
+                description = "Maximum distance (blocks) from the camera at which client particles collide " +
+                    "with ships. Particle-vs-ship collision is purely cosmetic and runs per particle every " +
+                    "tick (convex-polygon collision), so it gets very expensive around large fleets. Particles " +
+                    "beyond this distance skip it (imperceptible). Set to 0 to disable particle-ship collision entirely.",
+                min = 0.0,
+                max = 256.0
+            )
+            var maxParticleShipCollisionDistance = 48
         }
 
         @ConfigEntry(
-            description = "The way ships are rendered by default. BATCHED is the built-in default and powers advanced features (e.g. air pockets); VANILLA uses MC's terrain chunk renderer; FLYWHEEL requires the Flywheel mod."
+            description = "The way ships are rendered by default. BATCHED is the built-in default and powers advanced features; VANILLA uses MC's terrain chunk renderer; FLYWHEEL requires the Flywheel mod."
         )
         var defaultRenderer = ShipRenderer.BATCHED
 
@@ -333,12 +319,6 @@ object VSGameConfig {
         )
         var enableInteractDistanceChecks = true
 
-        @ConfigEntry(description = "If true, enables buoyancy from serverside air pockets.")
-        var enablePocketBuoyancy = false
-
-        @ConfigEntry(description = "Buoyancy factor added per cubic meter of air pocket inside a ship")
-        var buoyancyFactorPerPocketVolume = 0.05 // per cubic meter
-
         @ConfigEntry(description = "Force multiplier for flowing fluids pushing ships")
         var fluidWindSpeedScale = 10.0
 
@@ -501,23 +481,5 @@ object VSGameConfig {
         }
     }
 
-    class Common {
-        @ConfigEntry(
-            description = "Multiplier for ship pocket flooding speed. `1.0` = current baseline, `0.3333` = ~3x slower flooding."
-        )
-        var shipPocketFloodRateMultiplier = 0.3333333333333333
-
-        @ConfigEntry(
-            description = "Multiplier for ship pocket leak/flood particle velocity."
-        )
-        var shipPocketParticleSpeedMultiplier = 1.0
-
-        @ConfigEntry(
-            description = "Enables ship air pockets. Must be enabled on both client and server."
-        )
-        // VS benchmark patch: defaulted OFF. Disables the ship water-pocket / flooding subsystem and the
-        // ship-water rendering that is gated on it. The hot server entry points (tickServerLevel /
-        // tickClientLevel) and every per-query fluid override early-out on this flag.
-        var enableAirPockets = false
-    }
+    class Common
 }

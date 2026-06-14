@@ -82,8 +82,7 @@ class BuoyancyHandlerAttachment : ShipPhysicsListener {
     override fun physTick(
         physShip: PhysShip, physLevel: PhysLevel
     ) {
-        if (!VSGameConfig.COMMON.enableAirPockets) return
-        if (true || !VSGameConfig.SERVER.enablePocketBuoyancy) return
+        return
 
         if (!buoyancyData.hasPocketCenter) {
             buoyancyData.lastAppliedBuoyancyForce = 0.0

@@ -424,6 +424,9 @@ public final class ShipBatchRenderer {
         final Vec3 cam = camera.getPosition();
 
         for (int shipIdx = 0; shipIdx < drawOrder.size(); shipIdx++) {
+            if (shipIdx < frameData.size() && !frameData.get(shipIdx).visible) {
+                continue;
+            }
             final ShipRenderObject renderObject = drawOrder.get(shipIdx);
             final List<BlockEntity> shipBlockEntities = renderObject.getBlockEntities(level);
             if (shipBlockEntities.isEmpty()) {

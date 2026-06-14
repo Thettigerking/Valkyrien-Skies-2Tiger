@@ -162,15 +162,16 @@ public abstract class MixinChunkMap {
      */
     @Inject(method = "save", at = @At("HEAD"), cancellable = true)
     private void preSave(ChunkAccess chunkAccess, CallbackInfoReturnable<Boolean> cir) {
-        final ChunkPos pos = chunkAccess.getPos();
-        final Ship ship = VSGameUtilsKt.getShipManagingPos(level, pos);
-        if (ship == null) return;
-
         for (LevelChunkSection section : chunkAccess.getSections()) {
             if (section != null && !section.hasOnlyAir()) {
                 return; // chunk has content — let vanilla save run
             }
         }
+
+        final ChunkPos pos = chunkAccess.getPos();
+        final Ship ship = VSGameUtilsKt.getShipManagingPos(level, pos);
+        if (ship == null) return; // all-air non-ship chunk — vanilla handles it as before
+
         chunkAccess.setUnsaved(false);
         cir.setReturnValue(false);
     }

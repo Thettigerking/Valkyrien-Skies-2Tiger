@@ -53,7 +53,6 @@ import org.valkyrienskies.core.util.expand
 import org.valkyrienskies.mod.common.ValkyrienSkiesMod.ASSEMBLE_BLACKLIST
 import org.valkyrienskies.mod.common.entity.ShipMountedToData
 import org.valkyrienskies.mod.common.entity.ShipMountedToDataProvider
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager
 import org.valkyrienskies.mod.common.util.DimensionIdProvider
 import org.valkyrienskies.mod.common.util.EntityDragger.serversidePosition
 import org.valkyrienskies.mod.common.util.EntityShipCollisionUtils
@@ -699,40 +698,16 @@ fun Ship.toWorldCoordinates(x: Double, y: Double, z: Double, dest: Vector3d = Ve
 fun LevelChunkSection.toDenseVoxelUpdate(chunkPos: Vector3ic, level: Level? = null): VsiTerrainUpdate {
     val update = vsCore.newDenseTerrainUpdateBuilder(chunkPos.x(), chunkPos.y(), chunkPos.z())
     val info = BlockStateInfo.cache
-    val mutablePos = if (level == null) null else BlockPos.MutableBlockPos()
-    val baseX = SectionPos.sectionToBlockCoord(chunkPos.x())
-    val baseY = SectionPos.sectionToBlockCoord(chunkPos.y())
-    val baseZ = SectionPos.sectionToBlockCoord(chunkPos.z())
     for (x in 0..15) {
         for (y in 0..15) {
             for (z in 0..15) {
                 val blockState = getBlockState(x, y, z)
                 val defaultBlockType = info.get(blockState)?.second ?: vsCore.blockTypes.air
-                update.addBlock(
-                    x, y, z,
-                    blockState.resolvePhysicsBlockTypeForAirPocket(
-                        level,
-                        mutablePos?.set(baseX + x, baseY + y, baseZ + z),
-                        defaultBlockType,
-                    )
-                )
+                update.addBlock(x, y, z, defaultBlockType)
             }
         }
     }
     return update.build()
-}
-
-private fun BlockState.resolvePhysicsBlockTypeForAirPocket(
-    level: Level?,
-    blockPos: BlockPos?,
-    defaultBlockType: VsiBlockType,
-): VsiBlockType {
-    if (level == null || blockPos == null || !isAir) return defaultBlockType
-    return if (ShipWaterPocketManager.isShipyardBlockPosInShipAirPocket(level, blockPos)) {
-        vsCore.blockTypes.displacementAir
-    } else {
-        defaultBlockType
-    }
 }
 
 /**

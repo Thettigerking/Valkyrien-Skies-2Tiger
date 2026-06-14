@@ -52,7 +52,6 @@ import org.valkyrienskies.mod.common.VS2ChunkAllocator;
 import org.valkyrienskies.mod.common.IShipObjectWorldServerProvider;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 import org.valkyrienskies.mod.common.ValkyrienSkiesMod;
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager;
 import org.valkyrienskies.mod.common.block.WingBlock;
 import org.valkyrienskies.mod.common.config.DimensionParametersResolver;
 import org.valkyrienskies.mod.common.config.VSGameConfig;
@@ -242,9 +241,7 @@ public abstract class MixinServerLevel implements IShipObjectWorldServerProvider
                     new Vector3i(chunkX, worldChunk.getSectionYFromSectionIndex(sectionY), chunkZ);
                 voxelChunkPositions.add(chunkPos);
 
-                if (chunkSection != null && (!chunkSection.hasOnlyAir() ||
-                    ShipWaterPocketManager.hasShipyardAirPocketCellsInSection(thisAsLevel, chunkX, chunkPos.y(),
-                        chunkZ))) {
+                if (chunkSection != null && !chunkSection.hasOnlyAir()) {
                     // Add this chunk to the ground rigid body
                     final VsiTerrainUpdate voxelShapeUpdate =
                         VSGameUtilsKt.toDenseVoxelUpdate(chunkSection, chunkPos, thisAsLevel);
