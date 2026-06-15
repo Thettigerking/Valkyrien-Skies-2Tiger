@@ -18,6 +18,9 @@
   "block.valkyrienskies.test_sphere": "Debug Sphere",
   "block.valkyrienskies.test_thruster": "Debug Thruster",
   "block.valkyrienskies.test_antigrav": "Debug Levitator",
+
+  "item.valkyrienskies.debug_warn.one": "This is a debug tool for developers,",
+  "item.valkyrienskies.debug_warn.two": "install an addon for proper content",
   "item.valkyrienskies.ship_creator": "Ship Creator",
   "item.valkyrienskies.ship_creator_smaller": "Mini Ship Creator",
   "item.valkyrienskies.ship_remover": "Ship Remover",

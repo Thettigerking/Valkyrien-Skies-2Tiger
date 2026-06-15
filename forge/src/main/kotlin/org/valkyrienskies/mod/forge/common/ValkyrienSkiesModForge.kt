@@ -81,6 +81,7 @@ import org.valkyrienskies.mod.common.item.PhysicsEntityCreatorItem
 import org.valkyrienskies.mod.common.item.ShipAssemblerItem
 import org.valkyrienskies.mod.common.item.ShipCreatorItem
 import org.valkyrienskies.mod.common.item.ShipRemoverItem
+import org.valkyrienskies.mod.common.item.VSBlockItem
 import org.valkyrienskies.mod.compat.LoadedMods
 import org.valkyrienskies.mod.compat.flywheel.ShipEmbeddingManager
 import org.valkyrienskies.mod.forge.compat.dynmap.ForgeDynmapHandler
@@ -337,7 +338,7 @@ class ValkyrienSkiesModForge {
 
     private fun registerBlockAndItem(registryName: String, blockSupplier: () -> Block): RegistryObject<Block> {
         val blockRegistry = BLOCKS.register(registryName, blockSupplier)
-        ITEMS.register(registryName) { BlockItem(blockRegistry.get(), Properties()) }
+        ITEMS.register(registryName) { VSBlockItem(blockRegistry.get(), Properties()) }
         return blockRegistry
     }
 

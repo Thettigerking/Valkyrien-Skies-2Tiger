@@ -23,10 +23,7 @@ import org.valkyrienskies.mod.common.vsCore
 
 class PhysicsEntityCreatorItem(
     properties: Properties
-) : Item(properties) {
-    override fun isFoil(stack: ItemStack): Boolean {
-        return true
-    }
+) : VSItem(properties) {
 
     override fun useOn(ctx: UseOnContext): InteractionResult {
         val level = ctx.level as? ServerLevel ?: return super.useOn(ctx)
