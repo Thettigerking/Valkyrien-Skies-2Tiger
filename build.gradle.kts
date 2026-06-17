@@ -32,8 +32,8 @@ fun String.execute(currentWorkingDir: File = file("./")): String {
     return String(byteOut.toByteArray()).trim()
 }
 
-val minecraft_version: String by rootProject
-val archives_base_name: String by rootProject
+val minecraft_version: String by project
+val archives_base_name: String by project
 
 val maven_group: String by project
 val mod_version: String by project
@@ -129,7 +129,7 @@ subprojects {
         }
 
         mavenCentral()
-        if (!block_external_repositories.equals("true")) {
+        if (block_external_repositories != "true") {
             maven {
                 name = "Robotix's Public Maven "
                 url = uri("https://maven.realrobotix.me/master/")
@@ -324,17 +324,12 @@ subprojects {
         }
     }
 
-
     dependencies {
         "minecraft"("com.mojang:minecraft:${minecraft_version}")
         // The following line declares the mojmap mappings, you may use other mappings as well
         "mappings"(loom.officialMojangMappings())
 
-        add("compileOnly", "com.google.code.findbugs:jsr305:3.0.2")
-    }
-
-    if(project.path == ":common") {
-        return@subprojects
+        compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     }
 }
 
@@ -345,8 +340,9 @@ allprojects {
     apply(plugin = "maven-publish")
 
     // Set the base name, version, and group to the values in the gradle.properties
+    base.archivesName.set(archives_base_name)
     group = maven_group
-    version = version
+    version = rootProject.version
 
     extensions.configure<PublishingExtension> {
         repositories {
