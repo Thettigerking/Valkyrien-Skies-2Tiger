@@ -11,8 +11,7 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.util.RandomSource
 import net.minecraft.world.level.ClipContext
-import net.minecraft.world.level.ClipContext.Block
-import net.minecraft.world.level.ClipContext.Fluid
+import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings
 import org.joml.Quaterniond
@@ -108,8 +107,8 @@ object PerfTestCommand {
                     val clipContext = ClipContext(
                         player.eyePosition,
                         player.eyePosition.add(player.lookAngle.multiply(10.0, 10.0, 10.0)),
-                        Block.COLLIDER,
-                        Fluid.ANY,
+                        ClipContext.Block.COLLIDER,
+                        ClipContext.Fluid.ANY,
                         null
                     )
                     var target = level.clip(clipContext).blockPos
@@ -250,7 +249,7 @@ object PerfTestCommand {
                                     val settings = StructurePlaceSettings()
                                     settings.rotationPivot = corner
                                     template.placeInWorld(level, corner, corner, settings, random,
-                                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS)
+                                        Block.UPDATE_CLIENTS)
 
                                     val placedBlocks = mutableListOf<BlockPos>()
                                     for (dx in 0 until size.x) {

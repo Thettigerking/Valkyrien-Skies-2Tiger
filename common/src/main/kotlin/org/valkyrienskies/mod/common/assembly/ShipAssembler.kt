@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.LiquidBlockContainer
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.chunk.ChunkStatus
 import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor
@@ -53,11 +54,15 @@ import org.valkyrienskies.mod.common.util.SplittingDisablerAttachment
 import org.valkyrienskies.mod.common.util.toJOML
 import org.valkyrienskies.mod.common.util.toJOMLD
 import org.valkyrienskies.mod.common.vsCore
+import org.valkyrienskies.mod.common.world.VSTicketType
 import org.valkyrienskies.mod.common.yRange
+import org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
 import org.valkyrienskies.mod.util.AIR
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
 import org.valkyrienskies.mod.util.logger
 import org.valkyrienskies.mod.util.relocateBlock
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.locks.LockSupport
 import kotlin.Int.Companion
 import kotlin.math.max
 import kotlin.math.min
@@ -484,22 +489,22 @@ object ShipAssembler {
         try {
             for (cp in allDestChunkPoses) {
                 chunkSource.addRegionTicket(
-                    org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
+                    VSTicketType.SHIP_CHUNK, cp, 0, cp
                 )
             }
 
             val chunkSourceAccessor = chunkSource as
-                org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
+                ServerChunkCacheAccessor
             chunkSourceAccessor.callRunDistanceManagerUpdates()
 
             val preloadFutures = allDestChunkPoses.map { cp ->
                 chunkSourceAccessor.callGetChunkFutureMainThread(
-                    cp.x, cp.z, net.minecraft.world.level.chunk.ChunkStatus.FULL, false
+                    cp.x, cp.z, ChunkStatus.FULL, false
                 )
             }
 
             val allChunksLoaded =
-                java.util.concurrent.CompletableFuture.allOf(*preloadFutures.toTypedArray())
+                CompletableFuture.allOf(*preloadFutures.toTypedArray())
             val preloadDeadline = System.currentTimeMillis() + 60_000L
             while (!allChunksLoaded.isDone) {
                 if (!chunkSource.pollTask()) {
@@ -511,7 +516,7 @@ object ShipAssembler {
                         )
                         break
                     }
-                    java.util.concurrent.locks.LockSupport.parkNanos(100_000L)
+                    LockSupport.parkNanos(100_000L)
                 }
             }
         } finally {
@@ -555,7 +560,7 @@ object ShipAssembler {
                 level.shipObjectWorld.deleteShip(pending.toShip)
                 for (cp in pending.destChunks) {
                     level.chunkSource.removeRegionTicket(
-                        org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
+                        VSTicketType.SHIP_CHUNK, cp, 0, cp
                     )
                 }
                 continue
