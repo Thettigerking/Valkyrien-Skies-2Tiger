@@ -2,7 +2,7 @@ package org.valkyrienskies.mod.common
 
 import net.minecraft.Util
 
-object ValkyrienSkiesCrashReporter {
+object VSCrashReportHeader {
 
     val HEADER_COMMENTS: List<String> = listOf(
         "wait",

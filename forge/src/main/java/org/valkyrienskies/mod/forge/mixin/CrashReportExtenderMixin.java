@@ -6,14 +6,14 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.valkyrienskies.mod.common.ValkyrienSkiesCrashReporter;
+import org.valkyrienskies.mod.common.VSCrashReportHeader;
 
 @Mixin(CrashReportExtender.class)
 public class CrashReportExtenderMixin {
 
     @Inject(method = "addCrashReportHeader", at = @At("HEAD"), remap = false)
     private static void addConnectorCrashReportHeader(StringBuilder stringbuilder, CrashReport crashReport, CallbackInfo ci) {
-        ValkyrienSkiesCrashReporter.addCrashReportHeader(stringbuilder);
+        VSCrashReportHeader.addCrashReportHeader(stringbuilder);
     }
 
 }
