@@ -1,0 +1,63 @@
+[versions]
+common_mixinextras = "0.5.0" # https://github.com/LlamaLad7/MixinExtras/releases
+common_fabricLoaderVersion="0.17.2" # https://fabricmc.net/develop/
+common_fcapVersion = "8.0.3" # https://github.com/Fuzss/forgeconfigapiport
+common_ccTweakedVersion = "1.115.1" # Note: 1.115.1 is for create 6.0.0+
+common_createFabricVersion="6.0.7.0+build.1728-mc1.20.1" # https://modrinth.com/mod/create-fabric/versions
+common_createbigcannons_version="5.11.0-dev" # https://modrinth.com/mod/create-big-cannons/versions
+common_createbigcannons_build="-build.250" # Only used for in-dev versions, otherwise leave blank
+common_rplVersion="2.1.1"
+common_immptlVersion="v3.3.9-mc1.20.1"
+common_createUtilitiesVersion="0.2.1+1.20.1"
+common_teamRebornRnergyVersion="2.3.0"
+common_dynmapVersion="IIQSYMHC" # https://modrinth.com/plugin/dynmap/versions
+common_hexcastingVersion="0.11.3" # https://modrinth.com/mod/hex-casting/versions
+common_hextweaksVersion="7RPBspd1" # https://modrinth.com/mod/hextweaks/versions
+common_hexalVersion="0.3.1" # https://modrinth.com/mod/hexal/versions
+common_ephemeraVersion="d4xVSBKN" # https://modrinth.com/mod/ephemera/versions
+common_sodiumVersion = "mc1.20.1-0.5.13-fabric" # https://modrinth.com/mod/sodium/versions
+common_tis3dVersion = "MC1.20.1-fabric-1.7.7" # https://modrinth.com/mod/tis3d/version/MC1.20.1-fabric-1.7.7
+common_moonlightVersion = "1.20-2.16.22-fabric" # https://modrinth.com/mod/moonlight/versions
+
+fabric_fabricApiVersion="0.92.6+1.20.1" # https://fabricmc.net/develop/
+fabric_ccTweakedVersion = "1.115.1-fabric"
+
+forge_forgeVersion="1.20.1-47.4.2" # https://files.minecraftforge.net/net/minecraftforge/forge/
+forge_dynmapVersion="RtI5TFAi"
+
+[libraries]
+common_fabricLoader = { module = "net.fabricmc:fabric-loader", version.ref = "common_fabricLoaderVersion" }
+common_mixinExtras = { module = "io.github.llamalad7:mixinextras-common", version.ref = "common_mixinextras" }
+common_forgeConfigApiPort = { module = "fuzs.forgeconfigapiport:forgeconfigapiport-common", version.ref = "common_fcapVersion" }
+common_ccTweaked = { module = "cc.tweaked:cc-tweaked-1.20.1-common", version.ref = "common_ccTweakedVersion" }
+common_createFabric = { module = "com.simibubi.create:create-fabric", version.ref = "common_createFabricVersion" }
+common_immptl-core = { module = "com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core", version.ref = "common_immptlVersion" }
+common_immptl-misc = { module = "com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util", version.ref = "common_immptlVersion" }
+common_immptl-build = { module = "com.github.iPortalTeam.ImmersivePortalsMod:build", version.ref = "common_immptlVersion" }
+common_createUtilities = { module = "maven.modrinth:create-utilities", version.ref = "common_createUtilitiesVersion" }
+common_teamRebornEnergy = { module = "teamreborn:energy", version.ref = "common_teamRebornRnergyVersion" }
+common_dynmap = { module = "maven.modrinth:dynmap", version.ref = "common_dynmapVersion" }
+common_hexcasting = { module = "at.petra-k.hexcasting:hexcasting-common-1.20.1", version.ref = "common_hexcastingVersion" }
+common_hextweaks = { module = "maven.modrinth:hextweaks", version.ref = "common_hextweaksVersion" }
+common_hexal = { module = "ram.talia.hexal:hexal-fabric-1.20.1", version.ref = "common_hexalVersion" }
+common_ephemera = { module = "maven.modrinth:ephemera", version.ref = "common_ephemeraVersion"}
+common_sodium = { module = "maven.modrinth:sodium", version.ref = "common_sodiumVersion" }
+common_tis3d = { module = "maven.modrinth:tis3d", version.ref = "common_tis3dVersion" }
+common_moonlight = { module = "maven.modrinth:moonlight", version.ref = "common_moonlightVersion" }
+
+forge_mixinExtras = { module = "io.github.llamalad7:mixinextras-forge", version.ref = "common_mixinextras" }
+forge_forgeVersion = { module = "net.minecraftforge:forge", version.ref = "forge_forgeVersion"}
+forge_ccTweaked = { module = "cc.tweaked:cc-tweaked-1.20.1-forge", version.ref = "common_ccTweakedVersion" }
+forge_dynmap = { module = "maven.modrinth:dynmap", version.ref = "forge_dynmapVersion" }
+forge_hexcasting = { module = "at.petra-k.hexcasting:hexcasting-forge-1.20.1", version.ref = "common_hexcastingVersion" }
+forge_hexal = { module = "ram.talia.hexal:hexal-forge-1.20.1", version.ref = "common_hexalVersion" }
+
+fabric_mixinExtras = { module = "io.github.llamalad7:mixinextras-fabric", version.ref = "common_mixinextras" }
+fabric_fabricApi = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabric_fabricApiVersion"}
+fabric_forgeConfigApiPort = { module = "fuzs.forgeconfigapiport:forgeconfigapiport-fabric", version.ref = "common_fcapVersion"}
+fabric_ccTweaked = { module = "maven.modrinth:cc-tweaked", version.ref = "fabric_ccTweakedVersion" }
+fabric_hexcasting = { module = "at.petra-k.hexcasting:hexcasting-fabric-1.20.1", version.ref = "common_hexcastingVersion" }
+fabric_hexal = { module = "ram.talia.hexal:hexal-fabric-1.20.1", version.ref = "common_hexalVersion" }
+
+[bundles]
+common_immptl = ["common_immptl-core", "common_immptl-misc", "common_immptl-build"]

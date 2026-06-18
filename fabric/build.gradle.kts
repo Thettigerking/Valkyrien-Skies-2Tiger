@@ -1,23 +1,8 @@
 val minecraft_version: String by rootProject
-val mixinextras_version: String by rootProject
-val fabric_loader_version: String by rootProject
-val fcap_version: String by rootProject
 val vs_core_version: String by rootProject
 val archives_base_name: String by rootProject
 
-val sodium_version: String by project
 val iris_version: String by project
-val cc_tweaked_version: String by project
-val dynmap_version: String by project
-val hexcasting_version: String by project
-val hextweaks_version: String by project
-val ephemera_version: String by project
-val hexal_version: String by project
-val create_fabric_version: String by project
-val fabric_api_version: String by project
-val create_utilities_version: String by project
-val energy_version: String by project
-val immptl_version: String by project
 val kotlin_fabric_version: String by project
 val modmenu_version: String by project
 val port_lib_modules: String by project
@@ -60,9 +45,9 @@ loom {
 }
 
 dependencies {
-    include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:${mixinextras_version}")!!)!!)
+    include(implementation(annotationProcessor(libs.fabric.mixinExtras.get())!!)!!)
 
-    modImplementation("net.fabricmc:fabric-loader:${fabric_loader_version}")
+    modImplementation(libs.common.fabricLoader)
 
     add("common", project(":common", configuration = "namedElements")) {
         isTransitive = false
@@ -74,12 +59,12 @@ dependencies {
     // Depend on the fabric kotlin mod
     include(modImplementation("net.fabricmc:fabric-language-kotlin:${kotlin_fabric_version}")!!)
 
-    include(modImplementation("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${fcap_version}")!!)
+    include(modImplementation(libs.fabric.forgeConfigApiPort.get())!!)
     modRuntimeOnly("maven.modrinth:forge-config-screens:v8.0.2-1.20.1-Fabric")
 
 
-    modCompileOnly("maven.modrinth:create-utilities:${create_utilities_version}")
-    modCompileOnly("maven.modrinth:sodium:${sodium_version}")
+    modCompileOnly(libs.common.createUtilities)
+    modCompileOnly(libs.common.sodium)
     // Disable indium until we update sodium to newer versions
     //modRuntimeOnly("maven.modrinth:indium:${indium_version}")
     modCompileOnly("maven.modrinth:iris:${iris_version}")
@@ -88,9 +73,9 @@ dependencies {
 
 
     // Depend on the fabric API
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
+    modImplementation(libs.fabric.fabricApi)
 
-    modCompileOnly("teamreborn:energy:${energy_version}") { isTransitive = false }
+    modCompileOnly(libs.common.teamRebornEnergy) { isTransitive = false }
 
     implementation("org.valkyrienskies.core:internal:${vs_core_version}")
     implementation("org.valkyrienskies.core:util:${vs_core_version}")
@@ -113,7 +98,7 @@ dependencies {
     // CC Tweaked
     //modRuntimeOnly("cc.tweaked:cc-tweaked-${minecraft_version}-fabric:${cc_tweaked_version}")
     // CC Restitched
-    modCompileOnly("maven.modrinth:cc-tweaked:${cc_tweaked_version}-fabric")
+    modCompileOnly(libs.fabric.ccTweaked)
 
     //Very many players
     //modImplementation("curse.maven:vmp-fabric-552542:4754074")
@@ -129,8 +114,8 @@ dependencies {
     //modImplementation("com.simibubi.create:create-fabric:${create_fabric_version}") {
     //    exclude group: "com.github.AlphaMode", module: "fakeconfigtoml"
     //}
-    modCompileOnly("com.simibubi.create:create-fabric:$create_fabric_version")
-    modRuntimeOnly("com.simibubi.create:create-fabric:$create_fabric_version")
+    modCompileOnly(libs.common.createFabric)
+    modRuntimeOnly(libs.common.createFabric)
     //modImplementation("com.tterrag.registrate_fabric:Registrate:${registrate_version}")
 
     //modImplementation("io.github.fabricators_of_create.Porting-Lib:Porting-Lib:$port_lib_version")
@@ -145,26 +130,25 @@ dependencies {
     modCompileOnly("io.github.tropheusj:milk-lib:${milk_lib_version}")
 
     // Dynmap
-    modCompileOnly("maven.modrinth:dynmap:${dynmap_version}")
+    modCompileOnly(libs.common.dynmap)
 
     // Hexcasting
-    modCompileOnly("at.petra-k.hexcasting:hexcasting-fabric-${minecraft_version}:${hexcasting_version}") { isTransitive = false }
+    modCompileOnly(libs.fabric.hexcasting) { isTransitive = false }
 
     // HexTweaks
-    modCompileOnly("maven.modrinth:hextweaks:$hextweaks_version")
+    modCompileOnly(libs.common.hextweaks)
 
     // Hexical
     // fixme modCompileOnly("miyucomics.hexical:hexical:$hexical_version") { isTransitive = false }
 
     // Ephemera
-    modCompileOnly("maven.modrinth:ephemera:$ephemera_version")
+    modCompileOnly(libs.common.ephemera)
 
     // Hexal
-    modCompileOnly("ram.talia.hexal:hexal-fabric-$minecraft_version:$hexal_version") { isTransitive = false }
+    modCompileOnly(libs.fabric.hexal) { isTransitive = false }
 
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core:${immptl_version}") { isTransitive = false }
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${immptl_version}") { isTransitive = false }
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:build:${immptl_version}") { isTransitive = false }
+    // Immersive portals
+    modCompileOnly(libs.bundles.common.immptl) { isTransitive = false }
 
     // Connectible Chains [Fabric]
     modCompileOnly("curse.maven:connectiblechains-415681:7148381")

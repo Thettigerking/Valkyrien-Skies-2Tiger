@@ -1,44 +1,24 @@
 
 val minecraft_version: String by rootProject
-val mixinextras_version: String by rootProject
-val fabric_loader_version: String by rootProject
-val fcap_version: String by rootProject
 val vs_core_version: String by rootProject
 val enabled_platforms: String by rootProject
 val archives_base_name: String by rootProject
 
-val sodium_version: String by project
 val iris_version: String by project
 val alexscaves_version: String by project
-val tis3d_version: String by project
-val cc_tweaked_version: String by project
-val dynmap_version: String by project
-val hexcasting_version: String by project
-val hextweaks_version: String by project
-val ephemera_version: String by project
-val hexal_version: String by project
-val moonlight_version: String by project
-val create_fabric_version: String by project
-val fabric_api_version: String by project
-val create_utilities_version: String by project
-val energy_version: String by project
-val immptl_version: String by project
-val createbigcannons_version: String by project
-val createbigcannons_build: String by project
-val rpl_version: String by project
 
 dependencies {
-    implementation(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}")!!)
+    implementation(annotationProcessor(libs.common.mixinExtras.get())!!)
     testImplementation("junit:junit:4.13.2")
 
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     // We depend on fabric loader here to use the fabric @Environment annotations
     // Do NOT use other classes from fabric loader
-    modImplementation("net.fabricmc:fabric-loader:${fabric_loader_version}")
+    modImplementation(libs.common.fabricLoader)
 
-    modCompileOnly("fuzs.forgeconfigapiport:forgeconfigapiport-common:${fcap_version}") { isTransitive = false }
+    modCompileOnly(libs.common.forgeConfigApiPort) { isTransitive = false }
 
-    modCompileOnly("maven.modrinth:sodium:${sodium_version}")
+    modCompileOnly(libs.common.sodium)
     modCompileOnly("maven.modrinth:iris:${iris_version}")
 
     // Alex Caves
@@ -62,28 +42,28 @@ dependencies {
     modCompileOnly("curse.maven:weather-storms-tornadoes-237746:5244118")
 
     // TIS-3d
-    modCompileOnly("maven.modrinth:tis3d:${tis3d_version}")
+    modCompileOnly(libs.common.tis3d)
 
     // CC-Tweaked
-    modCompileOnly("cc.tweaked:cc-tweaked-${minecraft_version}-common:${cc_tweaked_version}")
+    modCompileOnly(libs.common.ccTweaked)
 
     // Dynmap
-    modCompileOnly("maven.modrinth:dynmap:${dynmap_version}")
+    modCompileOnly(libs.common.dynmap)
 
     // Hexcasting
-    modCompileOnly("at.petra-k.hexcasting:hexcasting-common-$minecraft_version:$hexcasting_version") { isTransitive = false }
+    modCompileOnly(libs.common.hexcasting) { isTransitive = false }
 
     // HexTweaks
-    modCompileOnly("maven.modrinth:hextweaks:$hextweaks_version")
+    modCompileOnly(libs.common.hextweaks)
 
     // Ephemera
-    modCompileOnly("maven.modrinth:ephemera:$ephemera_version")
+    modCompileOnly(libs.common.ephemera)
 
     // Hexal
-    modCompileOnly("ram.talia.hexal:hexal-fabric-$minecraft_version:$hexal_version") { isTransitive = false }
+    modCompileOnly(libs.common.hexal) { isTransitive = false }
 
     // Supplementaries (Moonlight Lib)
-    modCompileOnly("maven.modrinth:moonlight:$moonlight_version")
+    modCompileOnly(libs.common.moonlight)
 
     // Common create compat,
     // We just use a version from a platform and hope the classes exist on both versions and mixins apply correctly
@@ -99,13 +79,13 @@ dependencies {
 
     //Common create compat,
     //We just use a version from a platform and hope the classes exist on both versions and mixins apply correctly
-    modCompileOnly("com.simibubi.create:create-fabric:${create_fabric_version}")
+    modCompileOnly(libs.common.createFabric)
         { exclude( group = "com.github.AlphaMode", module = "fakeconfigtoml") }
-    modCompileOnly("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}") { isTransitive = false }
+    modCompileOnly(libs.fabric.fabricApi) { isTransitive = false }
     modCompileOnly("curse.maven:vanillin-965702:6446557")
 
-    modCompileOnly("maven.modrinth:create-utilities:${create_utilities_version}")
-    modCompileOnly("teamreborn:energy:${energy_version}") { isTransitive = false }
+    modCompileOnly(libs.common.createUtilities)
+    modCompileOnly(libs.common.teamRebornEnergy) { isTransitive = false }
     // modCompileOnly("io.github.fabricators_of_create:Porting-Lib:${port_lib_version}+${minecraft_version}")
 
     //Very many players
@@ -114,13 +94,15 @@ dependencies {
     //Bluemap fabric 1.20.1
     modCompileOnly("curse.maven:bluemap-406463:5555756")
 
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core:${immptl_version}") { isTransitive = false }
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${immptl_version}") { isTransitive = false }
-    modCompileOnly("com.github.iPortalTeam.ImmersivePortalsMod:build:${immptl_version}") { isTransitive = false }
+    // Immersive portals
+    modCompileOnly(libs.bundles.common.immptl) { isTransitive = false }
 
-    modCompileOnly("com.rbasamoyai:createbigcannons:${createbigcannons_version}+mc.${minecraft_version}-fabric${createbigcannons_build}") { isTransitive = false }
-    modCompileOnly("com.rbasamoyai:createbigcannons:${createbigcannons_version}+mc.${minecraft_version}-forge${createbigcannons_build}") { isTransitive = false }
-    modCompileOnly("com.rbasamoyai:ritchiesprojectilelib:${rpl_version}+mc.${minecraft_version}-forge") { isTransitive = false }
+    val cbcVersion = libs.versions.common.createbigcannons.version.get()
+    val cbcBuild = libs.versions.common.createbigcannons.build.get()
+    val rplVersion = libs.versions.common.rplVersion.get()
+    modCompileOnly("com.rbasamoyai:createbigcannons:$cbcVersion+mc.$minecraft_version-fabric$cbcBuild") { isTransitive = false }
+    modCompileOnly("com.rbasamoyai:createbigcannons:$cbcVersion+mc.$minecraft_version-forge$cbcBuild") { isTransitive = false }
+    modCompileOnly("com.rbasamoyai:ritchiesprojectilelib:$rplVersion+mc.$minecraft_version-forge") { isTransitive = false }
 
     modCompileOnly("maven.modrinth:theatrical:1.0.0-alpha.28.120+mc1.20.1")
 

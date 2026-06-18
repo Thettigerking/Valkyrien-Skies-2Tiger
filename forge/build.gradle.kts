@@ -1,31 +1,7 @@
 val minecraft_version: String by rootProject
-val mixinextras_version: String by rootProject
-val fabric_loader_version: String by rootProject
-val fcap_version: String by rootProject
 val vs_core_version: String by rootProject
-val enabled_platforms: String by rootProject
 val archives_base_name: String by rootProject
 
-val sodium_version: String by project
-val iris_version: String by project
-val alexscaves_version: String by project
-val tis3d_version: String by project
-val cc_tweaked_version: String by project
-val dynmap_version: String by project
-val hexcasting_version: String by project
-val hextweaks_version: String by project
-val ephemera_version: String by project
-val hexal_version: String by project
-val moonlight_version: String by project
-val create_fabric_version: String by project
-val fabric_api_version: String by project
-val create_utilities_version: String by project
-val energy_version: String by project
-val immptl_version: String by project
-val createbigcannons_version: String by project
-val createbigcannons_build: String by project
-val rpl_version: String by project
-val forge_version: String by project
 val embeddium_version: String by project
 val oculus_version: String by project
 val twilightforest_version: String by project
@@ -113,11 +89,12 @@ configurations {
 }
 
 dependencies {
-    implementation(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}")!!)
-    implementation(include("io.github.llamalad7:mixinextras-forge:${mixinextras_version}")!!)
+    implementation(annotationProcessor(libs.common.mixinExtras.get())!!)
+    implementation(include(libs.forge.mixinExtras.get())!!)
+
     annotationProcessor("net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5") // use fabric mixin so we can write interface injectors (conditionally loaded if mixinbooster is enabled)
 
-    forge("net.minecraftforge:forge:${forge_version}")
+    forge(libs.forge.forgeVersion)
 
     add("common", project(":common", configuration = "namedElements")) {
         isTransitive = false
@@ -158,7 +135,7 @@ dependencies {
     //modRuntimeOnly("curse.maven:coroutil-237749:5096038")
 
     // CC Tweaked
-    //modRuntimeOnly("cc.tweaked:cc-tweaked-${minecraft_version}-forge:${cc_tweaked_version}")
+    //modRuntimeOnly(libs.forge.ccTweaked)
 
     // OpenComputers 2: Reimagined
     modCompileOnly("maven.modrinth:oc2r:${oc2r_version}")
@@ -171,11 +148,11 @@ dependencies {
     modCompileOnly("curse.maven:vista-1368607:7929283")
 
     modCompileOnly("maven.modrinth:create-utilities:0.2.0+1.20.1")
-    modCompileOnly("teamreborn:energy:${energy_version}") {
+    modCompileOnly(libs.common.teamRebornEnergy) {
         isTransitive = false
     }
     // TIS-3d
-    modCompileOnly("maven.modrinth:tis3d:${tis3d_version}")
+    modCompileOnly(libs.common.tis3d)
 
     // Modular Routers
     modCompileOnly("curse.maven:mr-250294:4696089")
@@ -187,19 +164,19 @@ dependencies {
     modCompileOnly("maven.modrinth:epic-fight:20.10.3")
 
     // Dynmap
-    modCompileOnly("maven.modrinth:dynmap:${dynmap_version}")
+    modCompileOnly(libs.forge.dynmap)
 
     // Hexcasting
-    modCompileOnly("at.petra-k.hexcasting:hexcasting-forge-${minecraft_version}:${hexcasting_version}") { isTransitive = false }
+    modCompileOnly(libs.forge.hexcasting) { isTransitive = false }
 
     // HexTweaks
-    modCompileOnly("maven.modrinth:hextweaks:$hextweaks_version")
+    modCompileOnly(libs.common.hextweaks)
 
     // Ephemera
-    modCompileOnly("maven.modrinth:ephemera:$ephemera_version")
+    modCompileOnly(libs.common.ephemera)
 
     // Hexal
-    modCompileOnly("ram.talia.hexal:hexal-forge-$minecraft_version:$hexal_version") { isTransitive = false }
+    modCompileOnly(libs.forge.hexal) { isTransitive = false }
 
     // Integrated Dynamics
     modCompileOnly("curse.maven:integrated-dynamics-236307:5297722")
