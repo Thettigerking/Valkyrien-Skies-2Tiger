@@ -14,7 +14,7 @@ public class CrashReportMixin {
 
     @Inject(method = "getFriendlyReport", at = @At(value = "INVOKE",
         target = "Ljava/lang/StringBuilder;append(Ljava/lang/String;)Ljava/lang/StringBuilder;", ordinal = 0))
-    private void addTsToCrashReportHeader(CallbackInfoReturnable<String> cir, @Local(name = "stringBuilder")
+    private void addTsToCrashReportHeader(CallbackInfoReturnable<String> cir, @Local
     StringBuilder stringBuilder){
 
         VSCrashReportHeader.addCrashReportHeader(stringBuilder);
