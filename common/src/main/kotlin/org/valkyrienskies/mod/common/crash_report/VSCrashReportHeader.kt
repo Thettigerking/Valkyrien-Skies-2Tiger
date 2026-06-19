@@ -1,4 +1,4 @@
-package org.valkyrienskies.mod.common
+package org.valkyrienskies.mod.common.crash_report
 
 import net.minecraft.Util
 
@@ -42,7 +42,7 @@ object VSCrashReportHeader {
 
     @JvmStatic
     fun addCrashReportHeader(builder: StringBuilder) {
-        builder.append("\n// " + getHeaderComment())
+        builder.append("\n\n// " + getHeaderComment())
         builder.append("\nPlease check that this issue occurs without Valkyrien Skies before reporting it to other mod authors.")
         builder.append("\nIf this issue does not occur without Valkyrien Skies, please check if your issue has already been reported at https://github.com/ValkyrienSkies/Valkyrien-Skies-2/issues?q=is%3Aissue.")
         builder.append("\nIf your issue has not been reported or you are unsure, please report it at the link provided above.\n\n")
