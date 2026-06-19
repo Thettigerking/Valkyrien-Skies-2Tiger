@@ -80,5 +80,4 @@ try {
     }
 } catch (SecurityException ignore) {}
 
-
 rootProject.name = "valkyrienskies"
