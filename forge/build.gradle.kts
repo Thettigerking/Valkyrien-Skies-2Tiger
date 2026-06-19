@@ -2,17 +2,6 @@ val minecraft_version: String by rootProject
 val vs_core_version: String by rootProject
 val archives_base_name: String by rootProject
 
-val embeddium_version: String by project
-val oculus_version: String by project
-val twilightforest_version: String by project
-val create_version: String by project
-val ponder_version: String by project
-val flywheel_version: String by project
-val registrate_version: String by project
-val oc2r_version: String by project
-val mekanism_version: String by project
-val spark_version: String by project
-val kotlin_version: String by project
 val krunch_version: String by project
 val krunch_api_version: String by project
 
@@ -94,7 +83,7 @@ dependencies {
 
     annotationProcessor("net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5") // use fabric mixin so we can write interface injectors (conditionally loaded if mixinbooster is enabled)
 
-    forge(libs.forge.forgeVersion)
+    forge(libs.forge.forge)
 
     add("common", project(":common", configuration = "namedElements")) {
         isTransitive = false
@@ -103,14 +92,14 @@ dependencies {
         isTransitive = false
     }
 
-    modCompileOnly("maven.modrinth:embeddium:${embeddium_version}")
-    //modRuntimeOnly("maven.modrinth:embeddium:${embeddium_version}")
-    modCompileOnly("maven.modrinth:oculus:${oculus_version}")
+    modCompileOnly(libs.forge.embeddium)
+    //modRuntimeOnly(libs.forge.embeddium)
+    modCompileOnly(libs.forge.oculus)
 
     modRuntimeOnly("maven.modrinth:forge-config-screens:v8.0.2-1.20.1-Forge")
 
     // Twilight Forest
-    modCompileOnly("teamtwilight:twilightforest:${twilightforest_version}:universal")
+    modCompileOnly("teamtwilight:twilightforest:${libs.versions.forge.twilightforest.get()}:universal")
     //modRuntimeOnly("teamtwilight:twilightforest:${twilightforest_version}:universal")
 
     // CBC
@@ -119,16 +108,14 @@ dependencies {
 
 
     // Create compat
+    val create_version = libs.versions.forge.create.get()
     modCompileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { isTransitive = false }
     modRuntimeOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { isTransitive = false }
-    modCompileOnly("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}")
-    modRuntimeOnly("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}")
+    modCompileOnly(libs.bundles.forge.createDeps)
+    modRuntimeOnly(libs.bundles.forge.createDeps)
+
     modCompileOnly("curse.maven:vanillin-965702:6446560")
     modRuntimeOnly("curse.maven:vanillin-965702:6446560")
-    modCompileOnly("dev.engine-room.flywheel:flywheel-forge-api-${minecraft_version}:${flywheel_version}")
-    modRuntimeOnly("dev.engine-room.flywheel:flywheel-forge-${minecraft_version}:${flywheel_version}")
-    modCompileOnly("com.tterrag.registrate:Registrate:${registrate_version}")
-    modRuntimeOnly("com.tterrag.registrate:Registrate:${registrate_version}")
 
     // Weather2 1.20.1
     //modRuntimeOnly("curse.maven:weather-storms-tornadoes-237746:5244118")
@@ -138,7 +125,7 @@ dependencies {
     //modRuntimeOnly(libs.forge.ccTweaked)
 
     // OpenComputers 2: Reimagined
-    modCompileOnly("maven.modrinth:oc2r:${oc2r_version}")
+    modCompileOnly(libs.forge.oc2r)
 
     // EMF compat
     //todo: fix
@@ -187,19 +174,19 @@ dependencies {
     //modCompileOnly("maven.modrinth:vmp-forge:0.2.0+beta.7.101+1.20.1")
 
     // Mekanism
-    modCompileOnly("maven.modrinth:mekanism:${mekanism_version}")
-    //modRuntimeOnly("maven.modrinth:mekanism:${mekanism_version}")
+    modCompileOnly(libs.forge.mekanism)
+    //modRuntimeOnly(libs.forge.mekanism)
 
     // Spark Profiler
-    modRuntimeOnly ("maven.modrinth:spark:${spark_version}")
+    modRuntimeOnly (libs.forge.spark)
 
     // Connectible Chains [Forge]
     modCompileOnly("curse.maven:connectible-chains-forge-418514:6142294")
     //modRuntimeOnly("curse.maven:connectible-chains-forge-418514:6142294")
 
 
-    // Add Kotlin for Forge (3.12.0)
-    forgeRuntimeLibrary("maven.modrinth:kotlin-for-forge:${kotlin_version}")
+    // Add Kotlin for Forge (4.11.0)
+    forgeRuntimeLibrary(libs.forge.kotlinForForge.get())
 
     // Shade vs-core
     implementation("org.valkyrienskies.core:util:${vs_core_version}")

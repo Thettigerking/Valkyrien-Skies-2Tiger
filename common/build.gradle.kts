@@ -99,7 +99,7 @@ dependencies {
 
     val cbcVersion = libs.versions.common.createbigcannons.version.get()
     val cbcBuild = libs.versions.common.createbigcannons.build.get()
-    val rplVersion = libs.versions.common.rplVersion.get()
+    val rplVersion = libs.versions.common.rpl.get()
     modCompileOnly("com.rbasamoyai:createbigcannons:$cbcVersion+mc.$minecraft_version-fabric$cbcBuild") { isTransitive = false }
     modCompileOnly("com.rbasamoyai:createbigcannons:$cbcVersion+mc.$minecraft_version-forge$cbcBuild") { isTransitive = false }
     modCompileOnly("com.rbasamoyai:ritchiesprojectilelib:$rplVersion+mc.$minecraft_version-forge") { isTransitive = false }
