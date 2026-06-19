@@ -78,6 +78,7 @@ configurations {
 }
 
 dependencies {
+    // region Basic dependencies
     implementation(annotationProcessor(libs.common.mixinExtras.get())!!)
     implementation(include(libs.forge.mixinExtras.get())!!)
 
@@ -92,11 +93,17 @@ dependencies {
         isTransitive = false
     }
 
+    // Kotlin for Forge (4.11.0)
+    forgeRuntimeLibrary(libs.forge.kotlinForForge.get())
+    // endregion
+
+    // region Compat dependencies
+
     modCompileOnly(libs.forge.embeddium)
     //modRuntimeOnly(libs.forge.embeddium)
     modCompileOnly(libs.forge.oculus)
 
-    modRuntimeOnly("maven.modrinth:forge-config-screens:v8.0.2-1.20.1-Forge")
+    modRuntimeOnly(libs.forge.forgeConfigScreens)
 
     // Twilight Forest
     modCompileOnly("teamtwilight:twilightforest:${libs.versions.forge.twilightforest.get()}:universal")
@@ -128,9 +135,8 @@ dependencies {
     modCompileOnly(libs.forge.oc2r)
 
     // EMF compat
-    //todo: fix
-    modCompileOnly("maven.modrinth:entity-model-features:3.0.7-forge-1.20.1")
-    modCompileOnly("maven.modrinth:entitytexturefeatures:7.0.6-forge-1.20.1")
+    modCompileOnly(libs.forge.emf)
+    modCompileOnly(libs.forge.etf)
 
     modCompileOnly("curse.maven:vista-1368607:7929283")
 
@@ -184,11 +190,9 @@ dependencies {
     modCompileOnly("curse.maven:connectible-chains-forge-418514:6142294")
     //modRuntimeOnly("curse.maven:connectible-chains-forge-418514:6142294")
 
+    // endregion
 
-    // Add Kotlin for Forge (4.11.0)
-    forgeRuntimeLibrary(libs.forge.kotlinForForge.get())
-
-    // Shade vs-core
+    // region Shade vs-core
     implementation("org.valkyrienskies.core:util:${vs_core_version}")
     implementation("org.valkyrienskies.core:internal:${vs_core_version}") {
         exclude(group = "org.joml", module = "joml")
@@ -200,6 +204,7 @@ dependencies {
     forgeRuntimeLibrary(add("shadowCommon", "org.valkyrienskies.core:impl:$vs_core_version") {
         isTransitive = false
     })
+    // endregion
 
     // region Manually include every single dependency of vs-core (total meme)
     forgeRuntimeLibrary(include("org.valkyrienskies.core:api:${vs_core_version}") {

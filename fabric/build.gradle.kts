@@ -36,6 +36,7 @@ loom {
 }
 
 dependencies {
+    // region Basic dependencies
     include(implementation(annotationProcessor(libs.fabric.mixinExtras.get())!!)!!)
 
     modImplementation(libs.common.fabricLoader)
@@ -51,8 +52,11 @@ dependencies {
     include(modImplementation(libs.fabric.kotlin.get())!!)
 
     include(modImplementation(libs.fabric.forgeConfigApiPort.get())!!)
-    modRuntimeOnly("maven.modrinth:forge-config-screens:v8.0.2-1.20.1-Fabric")
+    // endregion
 
+    // region Compat dependencies
+
+    modRuntimeOnly(libs.fabric.forgeConfigScreens)
 
     modCompileOnly(libs.common.createUtilities)
     modCompileOnly(libs.common.sodium)
@@ -68,24 +72,6 @@ dependencies {
 
     modCompileOnly(libs.common.teamRebornEnergy) { isTransitive = false }
 
-    implementation("org.valkyrienskies.core:internal:${vs_core_version}")
-    implementation("org.valkyrienskies.core:util:${vs_core_version}")
-    runtimeOnly("org.valkyrienskies.core:impl:${vs_core_version}") {
-        exclude( module = "netty-buffer")
-        exclude( module = "fastutil")
-        exclude( module = "kotlin-stdlib-jdk8")
-    }
-    // Shade vs-core
-    add("shadowCommon", "org.valkyrienskies.core:impl:$vs_core_version") {
-        exclude(module = "netty-buffer")
-        exclude(module = "fastutil")
-        exclude(module = "kotlin-stdlib-jdk8") // Don't shade kotlin-stdlib-jdk8, even though vs-core depends on it
-        exclude(group = "com.google.guava")
-        exclude(module = "jsonschema.module.addon")
-    }
-
-    include(implementation("com.fasterxml:classmate:1.5.1")!!)
-
     // CC Tweaked
     //modRuntimeOnly("cc.tweaked:cc-tweaked-${minecraft_version}-fabric:${cc_tweaked_version}")
     // CC Restitched
@@ -95,9 +81,8 @@ dependencies {
     //modImplementation("curse.maven:vmp-fabric-552542:4754074")
 
     // EMF compat
-    //todo: fix
-    modCompileOnly("maven.modrinth:entity-model-features:3.0.7-fabric-1.20.1")
-    modCompileOnly("maven.modrinth:entitytexturefeatures:7.0.6-fabric-1.20.1")
+    modCompileOnly(libs.fabric.emf)
+    modCompileOnly(libs.fabric.etf)
 
     modCompileOnly("curse.maven:vista-1368607:7929284")
 
@@ -141,6 +126,29 @@ dependencies {
 
     // Connectible Chains [Fabric]
     modCompileOnly("curse.maven:connectiblechains-415681:7148381")
+
+    // endregion
+
+    // region vs
+    implementation("org.valkyrienskies.core:internal:${vs_core_version}")
+    implementation("org.valkyrienskies.core:util:${vs_core_version}")
+    runtimeOnly("org.valkyrienskies.core:impl:${vs_core_version}") {
+        exclude( module = "netty-buffer")
+        exclude( module = "fastutil")
+        exclude( module = "kotlin-stdlib-jdk8")
+    }
+    // endregion
+
+    // region Shade vs-core
+    add("shadowCommon", "org.valkyrienskies.core:impl:$vs_core_version") {
+        exclude(module = "netty-buffer")
+        exclude(module = "fastutil")
+        exclude(module = "kotlin-stdlib-jdk8") // Don't shade kotlin-stdlib-jdk8, even though vs-core depends on it
+        exclude(group = "com.google.guava")
+        exclude(module = "jsonschema.module.addon")
+    }
+    include(implementation("com.fasterxml:classmate:1.5.1")!!)
+    // endregion
 }
 
 // Copy the VS common access widener to the generated resources folder

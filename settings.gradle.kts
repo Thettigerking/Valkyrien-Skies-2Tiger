@@ -55,7 +55,7 @@ include("common")
 include("fabric")
 include("forge")
 
-
+/*
 try {
     def candidatePaths = [
         providers.gradleProperty("vsCoreDir").orNull,
@@ -91,7 +91,7 @@ try {
         }
     }
 } catch (SecurityException ignore) {}
-
+*/
 
 rootProject.name = "valkyrienskies"
 

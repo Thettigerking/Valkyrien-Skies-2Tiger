@@ -7,32 +7,27 @@ val archives_base_name: String by rootProject
 val alexscaves_version: String by project
 
 dependencies {
+    // region Basic dependencies
     implementation(annotationProcessor(libs.common.mixinExtras.get())!!)
     testImplementation("junit:junit:4.13.2")
 
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+    compileOnly("com.google.guava:guava:31.1-jre")
+
     // We depend on fabric loader here to use the fabric @Environment annotations
     // Do NOT use other classes from fabric loader
     modImplementation(libs.common.fabricLoader)
 
     modCompileOnly(libs.common.forgeConfigApiPort) { isTransitive = false }
+    // endregion
+
+    // region Compat dependencies
 
     modCompileOnly(libs.common.sodium)
     modCompileOnly(libs.common.iris)
 
     // Alex Caves
     modCompileOnly("maven.modrinth:alexs-caves:$alexscaves_version")
-
-    // vs-core
-    runtimeOnly("org.valkyrienskies.core:impl:${vs_core_version}") {
-        exclude(module = "netty-buffer")
-        exclude(module = "fastutil")
-    }
-    implementation("org.valkyrienskies.core:api:${vs_core_version}")
-    implementation("org.valkyrienskies.core:internal:${vs_core_version}")
-    implementation("org.valkyrienskies.core:util:${vs_core_version}")
-
-    compileOnly("com.google.guava:guava:31.1-jre")
 
     // FTB Stuffs
     //modCompileOnly("dev.ftb.mods:ftb-chunks:2001.3.6") { transitive = false }
@@ -64,12 +59,9 @@ dependencies {
     // Supplementaries (Moonlight Lib)
     modCompileOnly(libs.common.moonlight)
 
-    // Common create compat,
-    // We just use a version from a platform and hope the classes exist on both versions and mixins apply correctly
     // EMF compat
-    //todo: fix
-    modCompileOnly("curse.maven:entity-model-features-844662:5696901")
-    modCompileOnly("curse.maven:entity-texture-features-fabric-568563:5697084")
+    modCompileOnly(libs.common.emf)
+    modCompileOnly(libs.common.etf)
 
     modCompileOnly("curse.maven:vista-1368607:7929284")
 
@@ -105,7 +97,19 @@ dependencies {
 
     modCompileOnly("maven.modrinth:theatrical:1.0.0-alpha.28.120+mc1.20.1")
 
-    // Unit testing
+    //endregion ----------
+
+    // region vs-core
+    runtimeOnly("org.valkyrienskies.core:impl:${vs_core_version}") {
+        exclude(module = "netty-buffer")
+        exclude(module = "fastutil")
+    }
+    implementation("org.valkyrienskies.core:api:${vs_core_version}")
+    implementation("org.valkyrienskies.core:internal:${vs_core_version}")
+    implementation("org.valkyrienskies.core:util:${vs_core_version}")
+    // endregion
+
+    // region Unit testing
     val kotestVersion = "5.4.1"
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
@@ -113,6 +117,7 @@ dependencies {
     testImplementation("io.kotest:kotest-property:${kotestVersion}")
     testImplementation("io.kotest:kotest-assertions-core:${kotestVersion}")
     testImplementation("io.mockk:mockk:1.12.5")
+    // endregion
 }
 
 architectury {
