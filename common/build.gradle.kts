@@ -4,7 +4,6 @@ val vs_core_version: String by rootProject
 val enabled_platforms: String by rootProject
 val archives_base_name: String by rootProject
 
-val iris_version: String by project
 val alexscaves_version: String by project
 
 dependencies {
@@ -19,7 +18,7 @@ dependencies {
     modCompileOnly(libs.common.forgeConfigApiPort) { isTransitive = false }
 
     modCompileOnly(libs.common.sodium)
-    modCompileOnly("maven.modrinth:iris:${iris_version}")
+    modCompileOnly(libs.common.iris)
 
     // Alex Caves
     modCompileOnly("maven.modrinth:alexs-caves:$alexscaves_version")

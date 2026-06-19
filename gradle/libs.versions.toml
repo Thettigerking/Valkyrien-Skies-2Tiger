@@ -23,11 +23,15 @@
 #   Re-sync gradle BEFORE adding the actual dependency to any of the scripts
 # 5.
 #   Once gradle has loaded, your dependency should now be available for use as `libs.<loader>.mydep`
-# Note:
+# Notes:
 #   If your dependency string does not end with the version, e.g. "my.maven:mod:${version}:universal" or
 #   "my.maven:mod:${version}-${build-version}", then it cannot work with this file. Instead, you should
 #   add only its version number to the [versions] section, and write out the dependency string in the actual scripts.
 #   e.g. `modImplementation("my.maven:mod:${libs.versions.<loader>.mydep.get()}:universal")`
+#
+#   If your dependency has to go through a non-standard method, such as `include` or `annotationProcessor`, then you
+#   often need to add `.get()` to the end. E.g. `annotationProcessor(libs.forge.mymod.get())`. You also may need to do
+#   this if you're using the `libs.version.mymod` as part of a string.
 
 [versions]
 common_mixinextras = "0.5.0" # https://github.com/LlamaLad7/MixinExtras/releases
@@ -49,9 +53,16 @@ common_ephemera="d4xVSBKN" # https://modrinth.com/mod/ephemera/versions
 common_sodium = "mc1.20.1-0.5.13-fabric" # https://modrinth.com/mod/sodium/versions
 common_tis3d = "MC1.20.1-fabric-1.7.7" # https://modrinth.com/mod/tis3d/version/MC1.20.1-fabric-1.7.7
 common_moonlight = "1.20-2.16.22-fabric" # https://modrinth.com/mod/moonlight/versions
+common_iris = "1.7.6+1.20.1" #https://modrinth.com/mod/iris/versions
 
 fabric_fabricApi="0.92.6+1.20.1" # https://fabricmc.net/develop/
 fabric_ccTweaked = "1.115.1-fabric"
+fabric_fakePlayerApi="0.6.0" # https://github.com/CafeteriaGuild/fake-player-api/blob/1.19/gradle.properties
+fabric_reachEntityAttributes="2.4.0" # https://github.com/JamiesWhiteShirt/reach-entity-attributes/tags
+fabric_milkLib="1.2.60" # https://github.com/Fabricators-of-Create/Create/blob/4724359545de070788221dbb6387c31e582e9d45/gradle.properties#L33
+fabric_portLib="2.3.12+1.20.1" # https://github.com/Fabricators-of-Create/Create/blob/4724359545de070788221dbb6387c31e582e9d45/gradle.properties#L35
+fabric_modmenu = "7.1.0" # https://linkie.shedaniel.me/dependencies?loader=fabric&version=1.20.1
+fabric_kotlin = "1.11.0+kotlin.2.0.0"
 
 forge_forge="1.20.1-47.4.2" # https://files.minecraftforge.net/net/minecraftforge/forge/
 forge_dynmap="RtI5TFAi"
@@ -86,6 +97,7 @@ common_ephemera = { module = "maven.modrinth:ephemera", version.ref = "common_ep
 common_sodium = { module = "maven.modrinth:sodium", version.ref = "common_sodium" }
 common_tis3d = { module = "maven.modrinth:tis3d", version.ref = "common_tis3d" }
 common_moonlight = { module = "maven.modrinth:moonlight", version.ref = "common_moonlight" }
+common_iris = { module = "maven.modrinth:iris", version.ref = "common_iris" }
 
 forge_mixinExtras = { module = "io.github.llamalad7:mixinextras-forge", version.ref = "common_mixinextras" }
 forge_forge = { module = "net.minecraftforge:forge", version.ref = "forge_forge"}
@@ -110,7 +122,13 @@ fabric_forgeConfigApiPort = { module = "fuzs.forgeconfigapiport:forgeconfigapipo
 fabric_ccTweaked = { module = "maven.modrinth:cc-tweaked", version.ref = "fabric_ccTweaked" }
 fabric_hexcasting = { module = "at.petra-k.hexcasting:hexcasting-fabric-1.20.1", version.ref = "common_hexcasting" }
 fabric_hexal = { module = "ram.talia.hexal:hexal-fabric-1.20.1", version.ref = "common_hexal" }
+fabric_fakePlayerApi = { module = "dev.cafeteria:fake-player-api", version.ref = "fabric_fakePlayerApi" }
+fabric_reachEntityAttributes = { module = "com.jamieswhiteshirt:reach-entity-attributes", version.ref = "fabric_reachEntityAttributes" }
+fabric_milkLib = { module = "io.github.tropheusj:milk-lib", version.ref = "fabric_milkLib" }
+fabric_modmenu = { module = "maven.modrinth:modmenu", version.ref = "fabric_modmenu" }
+fabric_kotlin = { module = "net.fabricmc:fabric-language-kotlin", version.ref = "fabric_kotlin" }
 
 [bundles]
 common_immptl = ["common_immptl-core", "common_immptl-misc", "common_immptl-build"]
 forge_createDeps = ["forge_ponder", "forge_flywheel", "forge_flywheel", "forge_flywheel-api", "forge_registrate"]
+fabric_createDeps = ["fabric_fakePlayerApi", "fabric_reachEntityAttributes", "fabric_milkLib"]

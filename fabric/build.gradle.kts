@@ -1,16 +1,7 @@
-val minecraft_version: String by rootProject
 val vs_core_version: String by rootProject
 val archives_base_name: String by rootProject
 
-val iris_version: String by project
-val kotlin_fabric_version: String by project
-val modmenu_version: String by project
 val port_lib_modules: String by project
-val port_lib_version: String by project
-val config_api_id: String by project
-val reach_entity_attributes_version: String by project
-val fake_player_api_version: String by project
-val milk_lib_version: String by project
 
 plugins {
     id("com.github.johnrengelman.shadow") version "7.1.2"
@@ -57,7 +48,7 @@ dependencies {
     }
 
     // Depend on the fabric kotlin mod
-    include(modImplementation("net.fabricmc:fabric-language-kotlin:${kotlin_fabric_version}")!!)
+    include(modImplementation(libs.fabric.kotlin.get())!!)
 
     include(modImplementation(libs.fabric.forgeConfigApiPort.get())!!)
     modRuntimeOnly("maven.modrinth:forge-config-screens:v8.0.2-1.20.1-Fabric")
@@ -67,9 +58,9 @@ dependencies {
     modCompileOnly(libs.common.sodium)
     // Disable indium until we update sodium to newer versions
     //modRuntimeOnly("maven.modrinth:indium:${indium_version}")
-    modCompileOnly("maven.modrinth:iris:${iris_version}")
+    modCompileOnly(libs.common.iris)
 
-    modRuntimeOnly("maven.modrinth:modmenu:${modmenu_version}")
+    modRuntimeOnly(libs.fabric.modmenu)
 
 
     // Depend on the fabric API
@@ -119,15 +110,13 @@ dependencies {
     //modImplementation("com.tterrag.registrate_fabric:Registrate:${registrate_version}")
 
     //modImplementation("io.github.fabricators_of_create.Porting-Lib:Porting-Lib:$port_lib_version")
+    val port_lib_version = libs.versions.fabric.portLib.get()
     port_lib_modules.split(",").forEach { module ->
         modCompileOnly("io.github.fabricators_of_create.Porting-Lib:$module:$port_lib_version")
     }
     modCompileOnly("curse.maven:vanillin-965702:6446557")
 
-    modCompileOnly("curse.maven:forge-config-api-port-fabric-547434:$config_api_id")
-    modCompileOnly("com.jamieswhiteshirt:reach-entity-attributes:${reach_entity_attributes_version}")
-    modCompileOnly("dev.cafeteria:fake-player-api:${fake_player_api_version}")
-    modCompileOnly("io.github.tropheusj:milk-lib:${milk_lib_version}")
+    modCompileOnly(libs.bundles.fabric.createDeps)
 
     // Dynmap
     modCompileOnly(libs.common.dynmap)
