@@ -7,17 +7,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.valkyrienskies.mod.common.VSCrashReportHeader;
+import org.valkyrienskies.mod.common.crash_report.VSCrashReportHeader;
 
 @Mixin(CrashReport.class)
 public class CrashReportMixin {
 
-    @Inject(method = "getFriendlyReport", at = @At(value = "INVOKE",
-        target = "Ljava/lang/StringBuilder;append(Ljava/lang/String;)Ljava/lang/StringBuilder;", ordinal = 0))
-    private void addTsToCrashReportHeader(CallbackInfoReturnable<String> cir, @Local(name = "stringBuilder")
-    StringBuilder stringBuilder){
-
+    @Inject(method = "getFriendlyReport", at = @At(value = "INVOKE", target = "Ljava/lang/StringBuilder;append(Ljava/lang/String;)Ljava/lang/StringBuilder;", ordinal = 0, remap = false))
+    private void addToCrashReportHeader(CallbackInfoReturnable<String> cir, @Local StringBuilder stringBuilder){
         VSCrashReportHeader.addCrashReportHeader(stringBuilder);
     }
-//fabric, smh my head
 }

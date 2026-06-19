@@ -1,4 +1,4 @@
-package org.valkyrienskies.mod.common
+package org.valkyrienskies.mod.common.crash_report
 
 import net.minecraft.Util
 
