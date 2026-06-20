@@ -1,5 +1,7 @@
 package org.valkyrienskies.mod.compat.sodium.light;
 
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
+
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
@@ -14,7 +16,7 @@ import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 
 import org.joml.Matrix4dc;
-import org.joml.Quaterniond;
+import org.joml.Quaterniondc;
 import org.joml.Vector3d;
 import org.joml.primitives.AABBic;
 
@@ -41,6 +43,9 @@ public class VsShipEmitterList {
      *  (2 RGBA32F texels per emitter: position+light + ship rotation). */
     public static final int MAX_EMITTERS = 1024;
     private static final int BYTES_PER_EMITTER = 32; // 8 floats: vec4(worldX, worldY, worldZ, lightLevel) + vec4(qx, qy, qz, qw)
+    private static final int CAPACITY_BYTES = MAX_EMITTERS * BYTES_PER_EMITTER;
+
+    private static final double[] NO_EMITTERS = new double[0];
 
     private final long arenaPtr;
     private int count = 0;
@@ -50,8 +55,6 @@ public class VsShipEmitterList {
     private int currentByteSize = 0;
 
     private final Vector3d scratch = new Vector3d();
-    private final Quaterniond scratchQuat = new Quaterniond();
-    private final BlockPos.MutableBlockPos scratchBlockPos = new BlockPos.MutableBlockPos();
 
     public VsShipEmitterList() {
         arenaPtr = MemoryUtil.nmemAlloc((long) MAX_EMITTERS * BYTES_PER_EMITTER);
@@ -61,6 +64,7 @@ public class VsShipEmitterList {
         if (arenaPtr != 0L) MemoryUtil.nmemFree(arenaPtr);
         if (buffer != 0) { GL15.glDeleteBuffers(buffer); buffer = 0; }
         if (texture != 0) { GL11.glDeleteTextures(texture); texture = 0; }
+        currentByteSize = 0;
     }
 
     public void beginFrame() {
@@ -71,46 +75,58 @@ public class VsShipEmitterList {
         return count;
     }
 
-    /** Walk a ship's voxels, find emitters, transform to world coords, append. */
-    public void populateFromShip(LevelAccessor level, ClientShip ship) {
-        AABBic shipyardAabb = ship.getShipAABB();
-        if (shipyardAabb == null) return;
+    public static double[] scanShipEmitters(final LevelAccessor level, final ClientShip ship) {
+        final AABBic shipyardAabb = ship.getShipAABB();
+        if (shipyardAabb == null) return NO_EMITTERS;
 
-        ShipTransform xform = ship.getRenderTransform();
-        Matrix4dc shipToWorld = xform.getShipToWorld();
-        // Pull the rotation once per ship; every emitter on this hull
-        // shares the same quaternion. The shader applies its inverse
-        // to the world-frame fragment-to-emitter offset so the
-        // octahedral light bubble rotates with the hull.
-        shipToWorld.getNormalizedRotation(scratchQuat);
-        float qx = (float) scratchQuat.x;
-        float qy = (float) scratchQuat.y;
-        float qz = (float) scratchQuat.z;
-        float qw = (float) scratchQuat.w;
+        final int xMin = shipyardAabb.minX();
+        final int yMin = shipyardAabb.minY();
+        final int zMin = shipyardAabb.minZ();
+        final int xMax = shipyardAabb.maxX();
+        final int yMax = shipyardAabb.maxY();
+        final int zMax = shipyardAabb.maxZ();
 
-        int xMin = shipyardAabb.minX();
-        int yMin = shipyardAabb.minY();
-        int zMin = shipyardAabb.minZ();
-        int xMax = shipyardAabb.maxX();
-        int yMax = shipyardAabb.maxY();
-        int zMax = shipyardAabb.maxZ();
+        final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        DoubleArrayList out = null;
 
-        for (int sy = yMin; sy <= yMax; sy++) {
-            for (int sz = zMin; sz <= zMax; sz++) {
-                for (int sx = xMin; sx <= xMax; sx++) {
-                    if (count >= MAX_EMITTERS) return;
-                    scratchBlockPos.set(sx, sy, sz);
-                    BlockState state = level.getBlockState(scratchBlockPos);
-                    int lightLevel = state.getLightEmission();
+        for (int sy = yMin; sy < yMax; sy++) {
+            for (int sz = zMin; sz < zMax; sz++) {
+                for (int sx = xMin; sx < xMax; sx++) {
+                    final BlockState state = level.getBlockState(pos.set(sx, sy, sz));
+                    final int lightLevel = state.getLightEmission();
                     if (lightLevel <= 0) continue;
 
-                    // Voxel center → world coords. Float precision preserved.
-                    scratch.set(sx + 0.5, sy + 0.5, sz + 0.5);
-                    shipToWorld.transformPosition(scratch);
-
-                    appendEmitter(scratch.x, scratch.y, scratch.z, lightLevel, qx, qy, qz, qw);
+                    if (out == null) out = new DoubleArrayList();
+                    // Voxel center; transformed to world space per frame.
+                    out.add(sx + 0.5);
+                    out.add(sy + 0.5);
+                    out.add(sz + 0.5);
+                    out.add(lightLevel);
+                    if (out.size() >= MAX_EMITTERS * 4) {
+                        return out.toDoubleArray();
+                    }
                 }
             }
+        }
+        return out == null ? NO_EMITTERS : out.toDoubleArray();
+    }
+
+    public void appendShipEmitters(final ClientShip ship, final double[] shipyardEmitters) {
+        if (shipyardEmitters.length == 0 || count >= MAX_EMITTERS) return;
+
+        final ShipTransform xform = ship.getRenderTransform();
+        final Matrix4dc shipToWorld = xform.getShipToWorld();
+        final Quaterniondc rot = xform.getRotation();
+        final float qx = (float) rot.x();
+        final float qy = (float) rot.y();
+        final float qz = (float) rot.z();
+        final float qw = (float) rot.w();
+
+        for (int i = 0; i + 3 < shipyardEmitters.length; i += 4) {
+            if (count >= MAX_EMITTERS) return;
+            scratch.set(shipyardEmitters[i], shipyardEmitters[i + 1], shipyardEmitters[i + 2]);
+            shipToWorld.transformPosition(scratch);
+            appendEmitter(scratch.x, scratch.y, scratch.z, (int) shipyardEmitters[i + 3], qx, qy, qz, qw);
         }
     }
 
@@ -132,17 +148,20 @@ public class VsShipEmitterList {
 
     public void upload() {
         ensureGlObjects();
-        int needed = Math.max(BYTES_PER_EMITTER, count * BYTES_PER_EMITTER);
         GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer);
-        boolean orphaned = currentByteSize != needed;
-        if (orphaned || count > 0) {
-            GL15.nglBufferData(GL31.GL_TEXTURE_BUFFER, needed, arenaPtr, GL15.GL_DYNAMIC_DRAW);
-            currentByteSize = needed;
+        final boolean respec = currentByteSize != CAPACITY_BYTES;
+        if (respec) {
+            GL15.nglBufferData(GL31.GL_TEXTURE_BUFFER, CAPACITY_BYTES, MemoryUtil.NULL, GL15.GL_DYNAMIC_DRAW);
+            currentByteSize = CAPACITY_BYTES;
+        }
+        if (count > 0) {
+            GL15.nglBufferSubData(GL31.GL_TEXTURE_BUFFER, 0L, (long) count * BYTES_PER_EMITTER, arenaPtr);
         }
         GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, 0);
-        if (orphaned) {
+        if (respec) {
             // Some drivers cache the buffer-data-store reference at glTexBuffer
-            // time; re-associate after orphaning so the texture sees the new data.
+            // time; re-associate after (re)allocation so the texture sees the new
+            // store.
             GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, texture);
             GL31.glTexBuffer(GL31.GL_TEXTURE_BUFFER, GL30.GL_RGBA32F, buffer);
             GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);

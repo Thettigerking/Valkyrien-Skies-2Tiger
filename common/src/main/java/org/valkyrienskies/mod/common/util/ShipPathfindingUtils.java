@@ -15,7 +15,6 @@ import org.joml.primitives.AABBd;
 import org.joml.primitives.AABBdc;
 import org.valkyrienskies.core.api.ships.Ship;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager;
 import org.valkyrienskies.mod.mixin.feature.ai.node_evaluator.PathNavigationRegionAccessor;
 import org.valkyrienskies.mod.util.FluidStateManager;
 
@@ -206,7 +205,6 @@ public final class ShipPathfindingUtils {
 
     public static FluidState getShipAwareFluidState(final Level level, final BlockPos pos,
         final FluidStateManager.QueryCache queryCache) {
-        final FluidState rawState = FluidStateManager.getFluidState(level, pos, queryCache);
-        return ShipWaterPocketManager.overrideWaterFluidState(level, pos, rawState);
+        return FluidStateManager.getFluidState(level, pos, queryCache);
     }
 }

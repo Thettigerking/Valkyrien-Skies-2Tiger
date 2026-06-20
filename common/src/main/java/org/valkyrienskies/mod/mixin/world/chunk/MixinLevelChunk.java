@@ -43,11 +43,9 @@ import org.valkyrienskies.mod.common.VS2ChunkAllocator;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 import org.valkyrienskies.mod.common.fluid.VanillaFluidFlowWindProvider;
 import org.valkyrienskies.mod.common.util.VSLevelChunk;
-import org.valkyrienskies.mod.mixinducks.feature.air_pockets.ship_water_pockets.LevelChunkDuck;
-import org.valkyrienskies.mod.util.FluidStateManager;
 
 @Mixin(LevelChunk.class)
-public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChunk, LevelChunkDuck {
+public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChunk {
     @Unique
     private static final Set<Heightmap.Types> ALL_HEIGHT_MAP_TYPES = new HashSet<>(Arrays.asList((Heightmap.Types.values())));
 
@@ -61,9 +59,6 @@ public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChun
     @Shadow
     @Mutable
     private LevelChunkTicks<Fluid> fluidTicks;
-
-    @Unique
-    private FluidStateManager.ChunkFluidData fluidData;
 
     /**
      * Allow block entity ticking in shipyard chunks that were loaded only to FULL status.
@@ -103,26 +98,6 @@ public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChun
     public MixinLevelChunk(final Ship ship) {
         super(null, null, null, null, 0, null, null);
         throw new IllegalStateException("This should never be called!");
-    }
-
-    @Inject(
-        method = "<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/ChunkPos;Lnet/minecraft/world/level/chunk/UpgradeData;Lnet/minecraft/world/ticks/LevelChunkTicks;Lnet/minecraft/world/ticks/LevelChunkTicks;J[Lnet/minecraft/world/level/chunk/LevelChunkSection;Lnet/minecraft/world/level/chunk/LevelChunk$PostLoadProcessor;Lnet/minecraft/world/level/levelgen/blending/BlendingData;)V",
-        at = @At("RETURN")
-    )
-    private void LevelChunk$init(
-        Level level, ChunkPos chunkPos, UpgradeData upgradeData, LevelChunkTicks levelChunkTicks,
-        LevelChunkTicks levelChunkTicks2, long l, LevelChunkSection[] levelChunkSections,
-        PostLoadProcessor postLoadProcessor, BlendingData blendingData, CallbackInfo ci
-    ) {
-        // VS benchmark patch (air pockets removed): the per-chunk fluid snapshot was only read by the
-        // ship water-pocket solver, which is now disabled. Skip the expensive full-section fluid scan on
-        // every chunk load; keep an empty stub so the LevelChunkDuck#vs$getFluidData contract still holds.
-        this.fluidData = new FluidStateManager.ChunkFluidData();
-    }
-
-    @Override
-    public FluidStateManager.ChunkFluidData vs$getFluidData() {
-        return this.fluidData;
     }
 
     @Inject(method = "setBlockState", at = @At("RETURN"))
@@ -165,7 +140,6 @@ public abstract class MixinLevelChunk extends ChunkAccess implements VSLevelChun
             //new LevelChunkSection(registry);
             sections[i] = new LevelChunkSection(registry);
         }
-        this.fluidData.clear();
         this.setLightCorrect(false);
 
         registerTickContainerInLevel((ServerLevel) level);

@@ -35,6 +35,7 @@ import org.valkyrienskies.mod.common.VSRenderTypes;
 import org.valkyrienskies.mod.common.config.ShipRendererKt;
 import org.valkyrienskies.mod.common.render.light.VsDynamicLight;
 import org.valkyrienskies.mod.common.util.VectorConversionsMCKt;
+import org.valkyrienskies.mod.compat.sodium.light.VsShipEmitterList;
 
 public final class ShipBatchRenderer {
 
@@ -109,7 +110,8 @@ public final class ShipBatchRenderer {
             lastLightPopulationGameTime = gameTime;
             VsDynamicLight.populateWorldLightForBatched(level);
         }
-        VsDynamicLight.populateShipEmittersForBatched(level);
+        final VsShipEmitterList shipEmitters = VsDynamicLight.getShipEmitterList();
+        shipEmitters.beginFrame();
 
         final BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         presentScratch.clear();
@@ -131,7 +133,12 @@ public final class ShipBatchRenderer {
             if (renderObject.ensureCompiled(level, dispatcher, compiler, reMeshBudget > 0)) {
                 reMeshBudget--;
             }
+            final double[] shipyardEmitters = renderObject.getShipyardEmitters(level);
+            if (shipyardEmitters.length != 0) {
+                shipEmitters.appendShipEmitters(ship, shipyardEmitters);
+            }
         }
+        shipEmitters.upload();
 
         synchronized (ships) {
             if (ships.size() != presentScratch.size()) {
@@ -352,15 +359,20 @@ public final class ShipBatchRenderer {
             data.visible = true;
 
             final ShipTransform transform = ship.getRenderTransform();
-            camScratch.set(camX, camY, camZ);
-            final Vector3dc camShip = transform.getWorldToShip().transformPosition(camScratch);
-            data.camShipX = camShip.x();
-            data.camShipY = camShip.y();
-            data.camShipZ = camShip.z();
+            camScratch.set(camX, camY, camZ).sub(transform.getPosition());
+            transform.getRotation().transformInverse(camScratch);
+            final Vector3dc scaling = transform.getScaling();
+            camScratch.x /= scaling.x();
+            camScratch.y /= scaling.y();
+            camScratch.z /= scaling.z();
+            camScratch.add(transform.getPositionInModel());
+            data.camShipX = camScratch.x;
+            data.camShipY = camScratch.y;
+            data.camShipZ = camScratch.z;
 
             poseStack.pushPose();
             VSClientGameUtils.transformRenderWithShip(transform, poseStack,
-                camShip.x(), camShip.y(), camShip.z(), camX, camY, camZ);
+                data.camShipX, data.camShipY, data.camShipZ, camX, camY, camZ);
             data.modelView.set(poseStack.last().pose());
             poseStack.popPose();
 
@@ -381,12 +393,14 @@ public final class ShipBatchRenderer {
             data.opaqueOffsetY = (float) (mesh.refY - data.camShipY);
             data.opaqueOffsetZ = (float) (mesh.refZ - data.camShipZ);
 
-            data.translucentOrder.addAll(mesh.translucentSections.values());
-            final double cx = data.camShipX;
-            final double cy = data.camShipY;
-            final double cz = data.camShipZ;
-            data.translucentOrder.sort((a, b) ->
-                Double.compare(sectionCenterDistSq(b, cx, cy, cz), sectionCenterDistSq(a, cx, cy, cz)));
+            if (!mesh.translucentSections.isEmpty()) {
+                data.translucentOrder.addAll(mesh.translucentSections.values());
+                final double cx = data.camShipX;
+                final double cy = data.camShipY;
+                final double cz = data.camShipZ;
+                data.translucentOrder.sort((a, b) ->
+                    Double.compare(sectionCenterDistSq(b, cx, cy, cz), sectionCenterDistSq(a, cx, cy, cz)));
+            }
         }
         transformStorage.upload();
     }
@@ -410,6 +424,9 @@ public final class ShipBatchRenderer {
         final Vec3 cam = camera.getPosition();
 
         for (int shipIdx = 0; shipIdx < drawOrder.size(); shipIdx++) {
+            if (shipIdx < frameData.size() && !frameData.get(shipIdx).visible) {
+                continue;
+            }
             final ShipRenderObject renderObject = drawOrder.get(shipIdx);
             final List<BlockEntity> shipBlockEntities = renderObject.getBlockEntities(level);
             if (shipBlockEntities.isEmpty()) {
