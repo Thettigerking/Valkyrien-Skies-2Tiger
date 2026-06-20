@@ -363,7 +363,7 @@ object VSGameConfig {
         @ConfigEntry(
             description = "Blast force in newtons of a TNT explosion at the center of the explosion."
         )
-        var explosionBlastForce = 500000.0
+        var explosionBlastForce = 70000.0
 
         @ConfigEntry(
             description = "Allow natural mob spawning on ships"
