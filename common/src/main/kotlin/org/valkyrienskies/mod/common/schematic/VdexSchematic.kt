@@ -10,7 +10,9 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.InputStream
 import java.nio.file.Path
+import java.util.Arrays
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -87,24 +89,29 @@ data class VdexData(
 
 object VdexIO {
     private val mapper = ObjectMapper()
+    private val fileHeader = byteArrayOf(0x56, 0x44, 0x45, 0x58, 0x0D, 0x0A, 0x1A, 0x0A)
 
     /**
-     * Write a .vdex file (ZIP containing metadata.json + .nbt files).
+     * Write a .vdex file (magic header + ZIP containing metadata.json + .nbt files).
      */
     fun write(path: Path, metadata: VdexMetadata, nbtData: Map<String, CompoundTag>) {
-        ZipOutputStream(path.toFile().outputStream().buffered()).use { zip ->
-            // Write metadata.json
-            zip.putNextEntry(ZipEntry("metadata.json"))
-            zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(metadata))
-            zip.closeEntry()
+        path.toFile().outputStream().buffered().use { output ->
+            output.write(fileHeader)
 
-            // Write each .nbt file
-            for ((name, tag) in nbtData) {
-                zip.putNextEntry(ZipEntry(name))
-                val baos = ByteArrayOutputStream()
-                NbtIo.write(tag, DataOutputStream(baos))
-                zip.write(baos.toByteArray())
+            ZipOutputStream(output).use { zip ->
+                // Write metadata.json
+                zip.putNextEntry(ZipEntry("metadata.json"))
+                zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(metadata))
                 zip.closeEntry()
+
+                // Write each .nbt file
+                for ((name, tag) in nbtData) {
+                    zip.putNextEntry(ZipEntry(name))
+                    val baos = ByteArrayOutputStream()
+                    NbtIo.write(tag, DataOutputStream(baos))
+                    zip.write(baos.toByteArray())
+                    zip.closeEntry()
+                }
             }
         }
     }
@@ -116,18 +123,22 @@ object VdexIO {
         val nbtData = mutableMapOf<String, CompoundTag>()
         var metadata: VdexMetadata? = null
 
-        ZipInputStream(path.toFile().inputStream().buffered()).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                val bytes = zip.readBytes()
-                if (entry.name == "metadata.json") {
-                    metadata = mapper.readValue(bytes, VdexMetadata::class.java)
-                } else if (entry.name.endsWith(".nbt")) {
-                    val tag = NbtIo.read(DataInputStream(ByteArrayInputStream(bytes)))
-                    nbtData[entry.name] = tag
+        path.toFile().inputStream().buffered().use { input ->
+            requireVdexHeader(input)
+
+            ZipInputStream(input).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    val bytes = zip.readBytes()
+                    if (entry.name == "metadata.json") {
+                        metadata = mapper.readValue(bytes, VdexMetadata::class.java)
+                    } else if (entry.name.endsWith(".nbt")) {
+                        val tag = NbtIo.read(DataInputStream(ByteArrayInputStream(bytes)))
+                        nbtData[entry.name] = tag
+                    }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
                 }
-                zip.closeEntry()
-                entry = zip.nextEntry
             }
         }
 
@@ -135,5 +146,12 @@ object VdexIO {
             metadata ?: throw IllegalStateException("No metadata.json found in .vdex file"),
             nbtData
         )
+    }
+
+    private fun requireVdexHeader(input: InputStream) {
+        val header = input.readNBytes(fileHeader.size)
+        if (!Arrays.equals(header, fileHeader)) {
+            throw IllegalArgumentException("Invalid .vdex file header")
+        }
     }
 }
