@@ -54,9 +54,7 @@ data class VdexConstraintMetadata(
     val shipIndex0: Int = 0,
     val shipIndex1: Int = 1,
     val position0offset: Vector3d = Vector3d(0.0, 0.0, 0.0),
-    val rotation0offset: Quaterniond = Quaterniond(0.0, 0.0, 0.0, 0.0),
     val position1offset: Vector3d = Vector3d(0.0, 0.0, 0.0),
-    val rotation1offset: Quaterniond = Quaterniond(0.0, 0.0, 0.0, 0.0),
 )
 
 /**

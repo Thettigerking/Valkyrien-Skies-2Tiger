@@ -147,11 +147,11 @@ object SchematicCommand {
             val ship0 = indexToShip[meta.shipIndex0] ?: return@forEach
             val ship1 = indexToShip[meta.shipIndex1] ?: return@forEach
 
-            val newPos0 = ship0.transform.positionInShip.add(meta.position0offset, Vector3d())
-            val newRot0 = joint.pose0.rot//meta.rotation0offset.mul(ship0.transform.shipToWorldRotation)
+            val newPos0 = ship0.shipAABB?.center(Vector3d())?.add(meta.position0offset, Vector3d()) ?: return@forEach
+            val newRot0 = joint.pose0.rot
 
-            val newPos1 = ship1.transform.positionInShip.add(meta.position1offset, Vector3d())
-            val newRot1 = joint.pose1.rot//meta.rotation1offset.mul(ship1.transform.rotation)
+            val newPos1 = ship1.shipAABB?.center(Vector3d())?.add(meta.position1offset, Vector3d()) ?: return@forEach
+            val newRot1 = joint.pose1.rot
 
             val newId0 = ship0.id
             val newId1 = ship1.id
@@ -257,10 +257,8 @@ object SchematicCommand {
                     VdexConstraintMetadata(
                         idx0,
                         idx1,
-                        joint.pose0.pos.sub(firstShip.transform.positionInShip, Vector3d()),
-                        Quaterniond(firstShip.transform.rotation).mul(Quaterniond(joint.pose0.rot).invert()),
-                        joint.pose1.pos.sub(secondShip.transform.positionInShip, Vector3d()),
-                        Quaterniond(secondShip.transform.rotation).mul(Quaterniond(joint.pose1.rot).invert()),
+                        joint.pose0.pos.sub(firstShip.shipAABB!!.center(Vector3d()), Vector3d()),
+                        joint.pose1.pos.sub(secondShip.shipAABB!!.center(Vector3d()), Vector3d()),
                     )
                 ))/*VdexConstraintEntry(
                     type = joint.javaClass.simpleName,
