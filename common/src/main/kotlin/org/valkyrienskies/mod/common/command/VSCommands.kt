@@ -24,7 +24,7 @@ import org.valkyrienskies.mod.common.command.commands.RemassCommand
 import org.valkyrienskies.mod.common.command.commands.RenameCommand
 import org.valkyrienskies.mod.common.command.commands.ScaleCommand
 import org.valkyrienskies.mod.common.command.commands.SplittingCommand
-import org.valkyrienskies.mod.common.command.commands.SaveShipCommand
+import org.valkyrienskies.mod.common.command.commands.SchematicCommand
 import org.valkyrienskies.mod.common.command.commands.SpawnShipCommand
 import org.valkyrienskies.mod.common.command.commands.PerfTestCommand
 import org.valkyrienskies.mod.common.command.commands.StaticCommand
@@ -49,7 +49,7 @@ object VSCommands {
         GetShipCommand.register(vs)
         RemassCommand.register(vs)
         RenameCommand.register(vs)
-        SaveShipCommand.register(vs)
+        SchematicCommand.register(vs)
         ScaleCommand.register(vs)
         SplittingCommand.register(vs)
         SpawnShipCommand.register(vs)

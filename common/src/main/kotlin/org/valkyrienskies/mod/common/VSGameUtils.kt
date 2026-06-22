@@ -882,3 +882,35 @@ fun AABBic.forEach(f: (Int, Int, Int) -> Unit) {
         }
     }
 }
+
+/**
+ * Will attempt to rename the ServerShip to the newSlug,
+ * but if an existing ship is found with that slug it will
+ * append a number like `-1` to the slug to make them unique.
+ * Not technically required, slugs _can_ be duplicated, but
+ * highly recommended.
+ */
+fun ServerShip.safeRenameTo(level: ServerLevel, newSlug: String) {
+    var newSlug = newSlug
+    var safeLimit = 0
+    while (safeLimit < 50) {
+        safeLimit += 1
+        run breaking@ {
+            level.allShips.forEach {
+                if (it.slug == newSlug) {
+                    val suffix = newSlug.split("-").last()
+                    if (suffix.toIntOrNull() != null) {
+                        val newNum = suffix.toInt() + 1
+                        newSlug = newSlug.dropLast(suffix.length)
+                        newSlug += newNum.toString()
+                    } else {
+                        newSlug += "-1"
+                    }
+                    // search all slugs again
+                    return@breaking
+                }
+            }
+        }
+    }
+    this.slug = newSlug
+}

@@ -85,7 +85,7 @@ object SpawnShipCommand {
         }
 
         // Re-create constraints
-        if (metadata.constraints.isNotEmpty()) {
+        /*if (metadata.constraints.isNotEmpty()) {
             val gtpa = ValkyrienSkiesMod.getOrCreateGTPA(level.dimensionId)
             for (constraint in metadata.constraints) {
                 if (constraint.shipIndex0 >= spawnedShips.size || constraint.shipIndex1 >= spawnedShips.size) continue
@@ -104,7 +104,7 @@ object SpawnShipCommand {
 
                 gtpa.addJoint(joint, delay = 4) { _ -> }
             }
-        }
+        }*/
 
         ctx.source.sendSuccess({
             Component.literal("Spawned ${spawnedShips.size} ship(s) from $filename.vdex")

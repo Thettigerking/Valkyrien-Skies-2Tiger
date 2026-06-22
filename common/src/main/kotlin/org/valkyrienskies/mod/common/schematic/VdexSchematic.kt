@@ -1,11 +1,16 @@
 package org.valkyrienskies.mod.common.schematic
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
 import org.joml.Quaterniond
 import org.joml.Vector3d
+import org.valkyrienskies.core.internal.joints.VSJoint
+import org.valkyrienskies.core.internal.joints.VSJointPose
+import org.valkyrienskies.mod.common.vsCore
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -16,6 +21,7 @@ import java.util.Arrays
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlin.collections.mutableMapOf
 
 /**
  * Pose for a constraint attachment point.
@@ -44,14 +50,13 @@ data class VdexJointPose(
  * A constraint between two ships in the schematic.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class VdexConstraintEntry(
-    val type: String = "revolute",
+data class VdexConstraintMetadata(
     val shipIndex0: Int = 0,
     val shipIndex1: Int = 1,
-    val pose0: VdexJointPose = VdexJointPose(),
-    val pose1: VdexJointPose = VdexJointPose(),
-    val maxForceTorque: Double? = null,
-    val driveFreeSpin: Boolean = true
+    val position0offset: Vector3d = Vector3d(0.0, 0.0, 0.0),
+    val rotation0offset: Quaterniond = Quaterniond(0.0, 0.0, 0.0, 0.0),
+    val position1offset: Vector3d = Vector3d(0.0, 0.0, 0.0),
+    val rotation1offset: Quaterniond = Quaterniond(0.0, 0.0, 0.0, 0.0),
 )
 
 /**
@@ -76,7 +81,8 @@ data class VdexMetadata(
     val version: Int = 1,
     val mainShipIndex: Int = 0,
     val ships: List<VdexShipEntry> = emptyList(),
-    val constraints: List<VdexConstraintEntry> = emptyList()
+    val constraints: List<Pair<VSJoint, VdexConstraintMetadata>> = emptyList(),
+    val shipIdToIndex: Map<Long, Int> = mapOf()
 )
 
 /**
@@ -88,31 +94,30 @@ data class VdexData(
 )
 
 object VdexIO {
-    private val mapper = ObjectMapper()
+    private val mapper = vsCore.defaultMapper
     private val fileHeader = byteArrayOf(0x56, 0x44, 0x45, 0x58, 0x0D, 0x0A, 0x1A, 0x0A)
 
     /**
      * Write a .vdex file (magic header + ZIP containing metadata.json + .nbt files).
      */
     fun write(path: Path, metadata: VdexMetadata, nbtData: Map<String, CompoundTag>) {
-        path.toFile().outputStream().buffered().use { output ->
-            output.write(fileHeader)
+        ZipOutputStream(path.toFile().outputStream().buffered()).use { zip ->
+            //output.write(fileHeader)
 
-            ZipOutputStream(output).use { zip ->
-                // Write metadata.json
-                zip.putNextEntry(ZipEntry("metadata.json"))
-                zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(metadata))
+            // Write metadata.json
+            zip.putNextEntry(ZipEntry("metadata.json"))
+            zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(metadata))
+            zip.closeEntry()
+
+            // Write each .nbt file
+            for ((name, tag) in nbtData) {
+                zip.putNextEntry(ZipEntry(name))
+                val baos = ByteArrayOutputStream()
+                NbtIo.write(tag, DataOutputStream(baos))
+                zip.write(baos.toByteArray())
                 zip.closeEntry()
-
-                // Write each .nbt file
-                for ((name, tag) in nbtData) {
-                    zip.putNextEntry(ZipEntry(name))
-                    val baos = ByteArrayOutputStream()
-                    NbtIo.write(tag, DataOutputStream(baos))
-                    zip.write(baos.toByteArray())
-                    zip.closeEntry()
-                }
             }
+
         }
     }
 
@@ -124,7 +129,6 @@ object VdexIO {
         var metadata: VdexMetadata? = null
 
         path.toFile().inputStream().buffered().use { input ->
-            requireVdexHeader(input)
 
             ZipInputStream(input).use { zip ->
                 var entry = zip.nextEntry
