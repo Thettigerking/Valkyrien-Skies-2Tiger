@@ -95,6 +95,9 @@ object SchematicCommand {
             )
             return 0
         } catch (e: InvalidPathException) {
+            // I don't think this exception is actually possible,
+            // since brigadier already checks for special characters
+            // But I'll keep it just in case
             ctx.source.sendFailure(
                     Component.literal("Invalid path: $filename.vdex")
             )
@@ -250,6 +253,7 @@ object SchematicCommand {
         for (ship in orderedShips) {
             val jointIds = gtpa.getJointsFromShip(ship.id) ?: continue
             for (jointId in jointIds) {
+                println("test")
                 if (!seenJoints.add(jointId)) continue
                 val joint = gtpa.getJointById(jointId) ?: continue
                 val idx0 = shipIdToIndex[joint.shipId0] ?: continue
@@ -267,17 +271,7 @@ object SchematicCommand {
                         joint.pose0.pos.sub(firstShip.shipAABB!!.center(Vector3d()), Vector3d()),
                         joint.pose1.pos.sub(secondShip.shipAABB!!.center(Vector3d()), Vector3d()),
                     )
-                ))/*VdexConstraintEntry(
-                    type = joint.javaClass.simpleName,
-                    shipIndex0 = idx0,
-                    shipIndex1 = idx1,
-                    pose0 = VdexJointPose.fromPosRot(
-                        Vector3d(joint.pose0.pos), Quaterniond(joint.pose0.rot)
-                    ),
-                    pose1 = VdexJointPose.fromPosRot(
-                        Vector3d(joint.pose1.pos), Quaterniond(joint.pose1.rot)
-                    )
-                ))*/
+                ))
             }
         }
 
