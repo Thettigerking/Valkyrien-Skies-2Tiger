@@ -51,6 +51,8 @@ import org.valkyrienskies.mod.common.shipObjectWorld
 import org.valkyrienskies.mod.common.util.floorToInt
 import org.valkyrienskies.mod.common.yRange
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
+import java.io.FileNotFoundException
+import java.lang.Exception
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 
@@ -87,9 +89,14 @@ object SchematicCommand {
         try {
             val filePath = schematicsDir.resolve("$filename.vdex")
             schem = VdexIO.read(filePath)
+        } catch (e: FileNotFoundException) {
+            ctx.source.sendFailure(
+                Component.literal("No such file: $filename.vdex")
+            )
+            return 0
         } catch (e: InvalidPathException) {
             ctx.source.sendFailure(
-                Component.literal("Invalid path: $filename.vdex")
+                    Component.literal("Invalid path: $filename.vdex")
             )
             return 0
         } catch (e: IllegalStateException) {
