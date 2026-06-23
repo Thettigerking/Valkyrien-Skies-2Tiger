@@ -315,7 +315,6 @@ object VdexWrapper {
 
         val metadata = VdexMetadata(
             version = 1,
-            mainShipIndex = 0,
             social = socialMetadata,
             ships = shipEntries,
             constraints = constraintEntries,

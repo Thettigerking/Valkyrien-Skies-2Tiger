@@ -80,7 +80,6 @@ data class VdexSocialMetadata(
 data class VdexMetadata(
     val version: Int = 1,
     val social: VdexSocialMetadata = VdexSocialMetadata(),
-    val mainShipIndex: Int = 0,
     val shipIdToIndex: Map<Long, Int> = mapOf(),
     @JsonIgnore val ships: List<VdexShipEntry> = emptyList(),
     @JsonIgnore val constraints: List<VdexConstraintEntry> = emptyList(),
