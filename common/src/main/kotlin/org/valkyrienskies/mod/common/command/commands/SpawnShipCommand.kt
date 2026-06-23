@@ -127,7 +127,7 @@ object SpawnShipCommand {
         if (size.x == 0 && size.y == 0 && size.z == 0) return null
 
         // Calculate world position for this ship (main ship at spawnPos, others offset)
-        val worldPos = Vector3d(spawnPos).add(entry.relativeX, entry.relativeY, entry.relativeZ)
+        val worldPos = Vector3d(spawnPos).add(entry.relativePos)
 
         // Create the ship
         val ship = level.shipObjectWorld.createNewShipAtBlock(

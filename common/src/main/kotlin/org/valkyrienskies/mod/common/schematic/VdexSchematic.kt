@@ -1,18 +1,16 @@
 package org.valkyrienskies.mod.common.schematic
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.fasterxml.jackson.core.type.TypeReference
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
 import org.joml.Quaterniond
+import org.joml.Quaterniondc
 import org.joml.Vector3d
+import org.joml.Vector3dc
 import org.valkyrienskies.core.internal.joints.VSJoint
-import org.valkyrienskies.core.internal.joints.VSJointPose
 import org.valkyrienskies.mod.common.vsCore
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.InputStream
@@ -21,27 +19,19 @@ import java.util.Arrays
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import kotlin.collections.mutableMapOf
 
 /**
  * Pose for a constraint attachment point.
  */
 data class VdexJointPose(
-    val x: Double = 0.0,
-    val y: Double = 0.0,
-    val z: Double = 0.0,
-    val rotX: Double = 0.0,
-    val rotY: Double = 0.0,
-    val rotZ: Double = 0.0,
-    val rotW: Double = 1.0
+    val position: Vector3dc = Vector3d(0.0, 0.0, 0.0),
+    val rotation: Quaterniondc = Quaterniond(0.0, 0.0, 0.0, 1.0)
 ) {
-    fun toPosition() = Vector3d(x, y, z)
-    fun toRotation() = Quaterniond(rotX, rotY, rotZ, rotW)
 
     companion object {
         fun fromPosRot(pos: Vector3d, rot: Quaterniond) = VdexJointPose(
-            pos.x, pos.y, pos.z,
-            rot.x, rot.y, rot.z, rot.w
+            position = pos,
+            rotation = rot
         )
     }
 }
@@ -64,11 +54,34 @@ data class VdexConstraintMetadata(
 data class VdexShipEntry(
     val name: String = "",
     val nbtFile: String = "ship_0.nbt",
-    val relativeX: Double = 0.0,
-    val relativeY: Double = 0.0,
-    val relativeZ: Double = 0.0,
+    val relativePos: Vector3dc = Vector3d(0.0, 0.0, 0.0),
+    val relativeRot: Quaterniondc = Quaterniond(0.0, 0.0, 0.0, 1.0),
     val isStatic: Boolean = false,
-    val scale: Double = 1.0
+    val scale: Double = 1.0,
+    val attachedData: ByteArray = byteArrayOf()
+)
+
+/**
+ * An individual constraint entry in the schematic.
+ */
+data class VdexConstraintEntry(
+    val joint: VSJoint,
+    val metadata: VdexConstraintMetadata = VdexConstraintMetadata()
+)
+
+/**
+ * A mod entry representing a mod that was present at schematic creation time. Required means that features of it were used in the saved schematic.
+ */
+data class VdexModEntry(
+    val id: String = "",
+    val version: String = "",
+    val required: Boolean = false
+)
+
+data class VdexSocialMetadata(
+    val name: String = "",
+    val description: String = "",
+    val author: String = ""
 )
 
 /**
@@ -77,10 +90,11 @@ data class VdexShipEntry(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class VdexMetadata(
     val version: Int = 1,
+    val social: VdexSocialMetadata = VdexSocialMetadata(),
     val mainShipIndex: Int = 0,
-    val ships: List<VdexShipEntry> = emptyList(),
-    val constraints: List<Pair<VSJoint, VdexConstraintMetadata>> = emptyList(),
-    val shipIdToIndex: Map<Long, Int> = mapOf()
+    val shipIdToIndex: Map<Long, Int> = mapOf(),
+    @JsonIgnore val ships: List<VdexShipEntry> = emptyList(),
+    @JsonIgnore val constraints: List<VdexConstraintEntry> = emptyList(),
 )
 
 /**
@@ -88,34 +102,76 @@ data class VdexMetadata(
  */
 data class VdexData(
     val metadata: VdexMetadata,
+    val modList: List<VdexModEntry>,
     val nbtData: Map<String, CompoundTag>
 )
 
 object VdexIO {
-    private val mapper = vsCore.defaultMapper
+    private val mapper = vsCore.stringMapper
     private val fileHeader = byteArrayOf(0x56, 0x44, 0x45, 0x58, 0x0D, 0x0A, 0x1A, 0x0A)
 
     /**
      * Write a .vdex file (magic header + ZIP containing metadata.json + .nbt files).
      */
-    fun write(path: Path, metadata: VdexMetadata, nbtData: Map<String, CompoundTag>) {
+    fun write(path: Path, metadata: VdexMetadata, modList: List<VdexModEntry> = emptyList(), nbtData: Map<String, CompoundTag>) {
         ZipOutputStream(path.toFile().outputStream().buffered()).use { zip ->
             //output.write(fileHeader)
+
+            val ships = metadata.ships
+            val joints = metadata.constraints
 
             // Write metadata.json
             zip.putNextEntry(ZipEntry("metadata.json"))
             zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(metadata))
             zip.closeEntry()
 
-            // Write each .nbt file
-            for ((name, tag) in nbtData) {
-                zip.putNextEntry(ZipEntry(name))
-                val baos = ByteArrayOutputStream()
-                NbtIo.write(tag, DataOutputStream(baos))
-                zip.write(baos.toByteArray())
+            // Write modlist.json
+            zip.putNextEntry(ZipEntry("modlist.json"))
+            zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(modList))
+            zip.closeEntry()
+
+            // Write each ship.json
+            zip.putNextEntry(ZipEntry("ships/"))
+            zip.closeEntry()
+            val usedNames = mutableSetOf<String>()
+            for (ship in ships) {
+                val name = if (usedNames.contains(ship.name)) {
+                    "${ship.name}_${usedNames.count { it.startsWith(ship.name) }}"
+                } else {
+                    ship.name
+                }
+                usedNames.add(name)
+                zip.putNextEntry(ZipEntry("ships/${name}.json"))
+                zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(ship))
                 zip.closeEntry()
             }
 
+            // Write each joint.json
+            zip.putNextEntry(ZipEntry("constraints/"))
+            zip.closeEntry()
+            val usedJointNames = mutableSetOf<String>()
+            var jointIndex = 0
+            for (jointPair in joints) {
+                // joint type + ships between + index
+                var jointIdentifier = jointPair.joint.jointType.name + "_" + jointPair.metadata.shipIndex0 + "-" + jointPair.metadata.shipIndex1
+                if (usedJointNames.contains(jointIdentifier)) {
+                    jointIdentifier += "_${usedJointNames.count { it.startsWith(jointIdentifier) }}"
+                }
+                usedJointNames.add(jointIdentifier)
+                zip.putNextEntry(ZipEntry("constraints/${jointIdentifier}.json"))
+                zip.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(jointPair))
+                zip.closeEntry()
+            }
+
+            zip.putNextEntry(ZipEntry("structure/"))
+            zip.closeEntry()
+            // Write each .nbt file
+            for ((name, tag) in nbtData) {
+                zip.putNextEntry(ZipEntry("structure/$name"))
+                val dataOut = DataOutputStream(zip)
+                NbtIo.write(tag, dataOut)
+                zip.closeEntry()
+            }
         }
     }
 
@@ -123,30 +179,70 @@ object VdexIO {
      * Read a .vdex file back into memory.
      */
     fun read(path: Path): VdexData {
-        val nbtData = mutableMapOf<String, CompoundTag>()
+        val nbtData = linkedMapOf<String, CompoundTag>()
+        val ships = mutableListOf<VdexShipEntry>()
+        val constraints = mutableListOf<VdexConstraintEntry>()
+
         var metadata: VdexMetadata? = null
+        var modList: List<VdexModEntry> = emptyList()
+
+        val modListType = object : TypeReference<List<VdexModEntry>>() {}
 
         path.toFile().inputStream().buffered().use { input ->
-
             ZipInputStream(input).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    val bytes = zip.readBytes()
-                    if (entry.name == "metadata.json") {
-                        metadata = mapper.readValue(bytes, VdexMetadata::class.java)
-                    } else if (entry.name.endsWith(".nbt")) {
-                        val tag = NbtIo.read(DataInputStream(ByteArrayInputStream(bytes)))
-                        nbtData[entry.name] = tag
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+
+                    try {
+                        if (entry.isDirectory) {
+                            continue
+                        }
+
+                        when {
+                            entry.name == "metadata.json" -> {
+                                metadata = mapper.readValue(zip.readBytes(), VdexMetadata::class.java)
+                            }
+
+                            // Your writer currently uses "modlist.json".
+                            // This also accepts "modList.json" in case older/test files used that spelling.
+                            entry.name == "modlist.json" || entry.name == "modList.json" -> {
+                                modList = mapper.readValue(zip.readBytes(), modListType)
+                            }
+
+                            entry.name.startsWith("ships/") && entry.name.endsWith(".json") -> {
+                                ships += mapper.readValue(zip.readBytes(), VdexShipEntry::class.java)
+                            }
+
+                            entry.name.startsWith("constraints/") && entry.name.endsWith(".json") -> {
+                                constraints += mapper.readValue(zip.readBytes(), VdexConstraintEntry::class.java)
+                            }
+
+                            entry.name.startsWith("structure/") -> {
+                                val structureName = entry.name.removePrefix("structure/")
+
+                                if (structureName.isNotBlank()) {
+                                    val tag = NbtIo.read(DataInputStream(zip))
+                                    nbtData[structureName] = tag
+                                }
+                            }
+                        }
+                    } finally {
+                        zip.closeEntry()
                     }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
                 }
             }
         }
 
+        val baseMetadata = metadata
+            ?: throw IllegalStateException("No metadata.json found in .vdex file")
+
         return VdexData(
-            metadata ?: throw IllegalStateException("No metadata.json found in .vdex file"),
-            nbtData
+            metadata = baseMetadata.copy(
+                ships = ships,
+                constraints = constraints
+            ),
+            modList = modList,
+            nbtData = nbtData
         )
     }
 
