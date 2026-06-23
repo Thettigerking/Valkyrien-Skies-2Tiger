@@ -322,14 +322,14 @@ object VdexWrapper {
         )
 
         //todo, figure out some way to get real mod versions
-        val modList = mutableListOf<VdexModEntry>(
-            VdexModEntry("valkyrienskies", ">2.5.x", true),
+        val modList = mutableListOf(
+            VdexModEntry("valkyrienskies", ValkyrienSkiesMod.modListUtil.getModVersion("valkyrienskies"), true),
         )
         modList.addAll(
             collectedModList
                 .distinct()
                 .sorted()
-                .map { VdexModEntry(it, "Unknown", true) }
+                .map { VdexModEntry(it, ValkyrienSkiesMod.modListUtil.getModVersion(it), true) }
         )
 
         // Save to world/schematics/ directory
