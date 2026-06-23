@@ -8,6 +8,7 @@ import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
 import net.minecraft.network.chat.Component
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings
@@ -46,13 +47,19 @@ import java.io.DataOutputStream
 import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.Path
 
 object VdexWrapper {
-    fun loadShip(ctx: CommandContext<CommandSourceStack>, filename: String): Int {
-        val level = ctx.source.level
-        val worldDir = level.server.getWorldPath(LevelResource.ROOT)
+    fun getSchematicDirectory(server: MinecraftServer): Path {
+        val worldDir = server.getWorldPath(LevelResource.ROOT)
         val schematicsDir = worldDir.resolve("schematics")
         Files.createDirectories(schematicsDir)
+        return schematicsDir
+    }
+
+    fun loadShip(ctx: CommandContext<CommandSourceStack>, filename: String): Int {
+        val level = ctx.source.level
+        val schematicsDir = getSchematicDirectory(level.server)
 
         val schem: VdexData = try {
             val filePath = schematicsDir.resolve("$filename.vdex")
@@ -327,9 +334,8 @@ object VdexWrapper {
         )
 
         // Save to world/schematics/ directory
-        val worldDir = level.server.getWorldPath(LevelResource.ROOT)
-        val schematicsDir = worldDir.resolve("schematics")
-        Files.createDirectories(schematicsDir)
+        val schematicsDir = getSchematicDirectory(level.server)
+
         val filePath = schematicsDir.resolve("$filename.vdex")
 
         VdexIO.write(filePath, metadata, modList, nbtData)
