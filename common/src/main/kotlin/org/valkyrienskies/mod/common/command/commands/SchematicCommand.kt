@@ -9,6 +9,7 @@ import net.minecraft.commands.Commands.argument
 import net.minecraft.commands.Commands.literal
 import net.minecraft.network.chat.Component
 import org.valkyrienskies.core.api.ships.ServerShip
+import org.valkyrienskies.mod.api.toJOML
 import org.valkyrienskies.mod.common.command.arguments.ShipArgument
 import org.valkyrienskies.mod.common.schematic.VdexWrapper
 
@@ -23,15 +24,33 @@ object SchematicCommand {
                 .then(argument("ship", ShipArgument.ships())
                     .then(argument("filename", StringArgumentType.word())
                         .executes { ctx ->
-                            VdexWrapper.saveShip(ctx, ShipArgument.getShip(ctx, "ship") as ServerShip,
-                                StringArgumentType.getString(ctx, "filename"))
+                            val ship = ShipArgument.getShip(ctx, "ship") as ServerShip
+                            val filename = StringArgumentType.getString(ctx, "filename")
+
+                            val metadata = VdexWrapper.saveShip(ctx.source.level, ship, filename, creator = ctx.source.player?.gameProfile?.name ?: "Unknown")
+
+                            ctx.source.sendSuccess({
+                                Component.literal("Saved ${metadata.ships.size} ship(s) to $filename.vdex (${metadata.constraints.size} constraints)")
+                            }, true)
+
+                            return@executes 1
                         }
                     )
                 )
             ).then(literal("load")
                 .then(argument("filename", StringArgumentType.word())
                     .executes { ctx ->
-                        VdexWrapper.loadShip(ctx, StringArgumentType.getString(ctx, "filename"))
+                        val error = VdexWrapper.loadShip(ctx.source.level, ctx.source.position.toJOML(), StringArgumentType.getString(ctx, "filename"))
+                        if (error == null) {
+                            ctx.source.sendSuccess({
+                                Component.literal("Successfully loaded schematic")
+                            }, false)
+
+                            return@executes 1
+                        }
+
+                        ctx.source.sendFailure(error)
+                        return@executes 0
                     }))
             .then(literal("open-folder")
                 .executes {

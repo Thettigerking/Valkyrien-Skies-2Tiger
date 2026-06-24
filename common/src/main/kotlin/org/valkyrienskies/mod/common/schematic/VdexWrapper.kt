@@ -16,6 +16,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.level.storage.LevelResource
 import org.joml.Quaterniond
 import org.joml.Vector3d
+import org.joml.Vector3dc
 import org.joml.Vector3i
 import org.valkyrienskies.core.api.attachment.AttachmentHolder
 import org.valkyrienskies.core.api.ships.ServerShip
@@ -57,35 +58,28 @@ object VdexWrapper {
         return schematicsDir
     }
 
-    fun loadShip(ctx: CommandContext<CommandSourceStack>, filename: String): Int {
-        val level = ctx.source.level
+    /**
+     * Returned component is null if the loading was successful, otherwise it will be the error message (translatable)
+     */
+    fun loadShip(level: ServerLevel, position: Vector3d, filename: String): Component? {
         val schematicsDir = getSchematicDirectory(level.server)
 
         val schem: VdexData = try {
             val filePath = schematicsDir.resolve("$filename.vdex")
             VdexIO.read(filePath)
         } catch (e: FileNotFoundException) {
-            ctx.source.sendFailure(
-                Component.literal("No such file: $filename.vdex")
-            )
-            return 0
+            return Component.literal("No such file: $filename.vdex")
         } catch (e: InvalidPathException) {
             // I don't think this exception is actually possible,
             // since brigadier already checks for special characters
             // But I'll keep it just in case
-            ctx.source.sendFailure(
-                Component.literal("Invalid path: $filename.vdex")
-            )
-            return 0
+            return Component.literal("Invalid path: $filename.vdex")
         } catch (e: IllegalStateException) {
-            ctx.source.sendFailure(
-                Component.literal("Not a valid VDex file: $filename.vdex")
-            )
-            return 0
+            return Component.literal("Not a valid VDex file: $filename.vdex")
         }
 
         // Vector3dc because we don't want to mutate this as we go along
-        val pastePos = Vector3d(ctx.source.position.toJOML())
+        val pastePos: Vector3dc = position
         val pasteRot = Quaterniond() // identity for now, todo: make rotation command parameter
 
         val indexToShip = mutableMapOf<Int, ServerShip>()
@@ -119,12 +113,7 @@ object VdexWrapper {
             shipsNeedingAttachmentLoad.put(ship.id, vdexShipEntry.attachedData)
 
             val structureTag = schem.nbtData[vdexShipEntry.nbtFile]
-            if (structureTag == null) {
-                ctx.source.sendFailure(
-                    Component.literal("Missing structure file in VDex Schematic: ${vdexShipEntry.nbtFile}")
-                )
-                return 0
-            }
+                ?: return Component.literal("Missing structure file in VDex Schematic: ${vdexShipEntry.nbtFile}")
 
             val template = StructureTemplate()
             template.load(level.holderLookup(Registries.BLOCK), structureTag)
@@ -174,26 +163,20 @@ object VdexWrapper {
                 is VSRackAndPinionJoint -> joint.copy(shipId0 = newId0, shipId1 = newId1, pose0 = VSJointPose(newPos0, newRot0), pose1 = VSJointPose(newPos1, newRot1))
                 is VSD6Joint -> joint.copy(shipId0 = newId0, shipId1 = newId1, pose0 = VSJointPose(newPos0, newRot0), pose1 = VSJointPose(newPos1, newRot1))
                 else -> {
-                    ctx.source.sendFailure(
-                        Component.literal("Unsupported joint type in VDEX: ${joint::class.simpleName}")
-                    )
-                    return@forEach
+                    return Component.literal("Unsupported joint type in VDEX: ${joint::class.simpleName}")
                 }
             }
 
             gtpa.addJoint(newJoint, 2) {}
         }
 
-        return 1
+        return null
     }
 
-    fun saveShip(ctx: CommandContext<CommandSourceStack>, mainShip: ServerShip, filename: String): Int {
-        val level = ctx.source.level
+    fun saveShip(level: ServerLevel, mainShip: ServerShip, filename: String, creator: String = "Unknown", description: String = "No description provided."): VdexMetadata {
+
         //todo: add stylistic name param to command probably
         val name = filename
-        val creator = ctx.source.player?.gameProfile?.name ?: "Unknown"
-        //todo: add description param to command
-        val description = "No description provided."
 
         // Find all connected ships via constraints
         val gtpa = ValkyrienSkiesMod.getOrCreateGTPA(level.dimensionId)
@@ -339,10 +322,8 @@ object VdexWrapper {
 
         VdexIO.write(filePath, metadata, modList, nbtData)
 
-        ctx.source.sendSuccess({
-            Component.literal("Saved ${orderedShips.size} ship(s) to $filename.vdex (${constraintEntries.size} constraints)")
-        }, true)
-        return 1
+
+        return metadata.copy()
     }
 
     fun collectShipBlocks(level: ServerLevel, ship: ServerShip, collectedModList: MutableList<String> = mutableListOf()): List<BlockPos> {
