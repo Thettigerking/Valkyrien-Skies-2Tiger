@@ -30,7 +30,7 @@ object SchematicCommand {
                             val metadata = VdexWrapper.saveShip(ctx.source.level, ship, filename, creator = ctx.source.player?.gameProfile?.name ?: "Unknown")
 
                             ctx.source.sendSuccess({
-                                Component.literal("Saved ${metadata.ships.size} ship(s) to $filename.vdex (${metadata.constraints.size} constraints)")
+                                Component.translatable("command.valkyrienskies.schematic.save.success", metadata.ships.size, filename, metadata.constraints.size)
                             }, true)
 
                             return@executes 1
@@ -43,7 +43,7 @@ object SchematicCommand {
                         val error = VdexWrapper.loadShip(ctx.source.level, ctx.source.position.toJOML(), StringArgumentType.getString(ctx, "filename"))
                         if (error == null) {
                             ctx.source.sendSuccess({
-                                Component.literal("Successfully loaded schematic")
+                                Component.translatable("command.valkyrienskies.schematic.load.success")
                             }, false)
 
                             return@executes 1
@@ -60,7 +60,7 @@ object SchematicCommand {
                         return@executes 1
                     }
 
-                    it.source.sendFailure(Component.literal("This command can't be used on a dedicated server"))
+                    it.source.sendFailure(Component.translatable("command.valkyrienskies.schematic.open_folder.server"))
 
                     return@executes 0
                 })

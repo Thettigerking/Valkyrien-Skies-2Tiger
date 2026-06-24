@@ -68,14 +68,14 @@ object VdexWrapper {
             val filePath = schematicsDir.resolve("$filename.vdex")
             VdexIO.read(filePath)
         } catch (e: FileNotFoundException) {
-            return Component.literal("No such file: $filename.vdex")
+            return Component.translatable("command.valkyrienskies.schematic.load.fail.no_such_file", filename)
         } catch (e: InvalidPathException) {
             // I don't think this exception is actually possible,
             // since brigadier already checks for special characters
             // But I'll keep it just in case
-            return Component.literal("Invalid path: $filename.vdex")
+            return Component.translatable("command.valkyrienskies.schematic.load.fail.invalid_path", filename)
         } catch (e: IllegalStateException) {
-            return Component.literal("Not a valid VDex file: $filename.vdex")
+            return Component.translatable("command.valkyrienskies.schematic.load.fail.not_vdex", filename)
         }
 
         // Vector3dc because we don't want to mutate this as we go along
@@ -113,7 +113,7 @@ object VdexWrapper {
             shipsNeedingAttachmentLoad.put(ship.id, vdexShipEntry.attachedData)
 
             val structureTag = schem.nbtData[vdexShipEntry.nbtFile]
-                ?: return Component.literal("Missing structure file in VDex Schematic: ${vdexShipEntry.nbtFile}")
+                ?: return Component.translatable("command.valkyrienskies.schematic.load.fail.missing_structure", vdexShipEntry.nbtFile)
 
             val template = StructureTemplate()
             template.load(level.holderLookup(Registries.BLOCK), structureTag)
@@ -163,7 +163,7 @@ object VdexWrapper {
                 is VSRackAndPinionJoint -> joint.copy(shipId0 = newId0, shipId1 = newId1, pose0 = VSJointPose(newPos0, newRot0), pose1 = VSJointPose(newPos1, newRot1))
                 is VSD6Joint -> joint.copy(shipId0 = newId0, shipId1 = newId1, pose0 = VSJointPose(newPos0, newRot0), pose1 = VSJointPose(newPos1, newRot1))
                 else -> {
-                    return Component.literal("Unsupported joint type in VDEX: ${joint::class.simpleName}")
+                    return Component.translatable("command.valkyrienskies.schematic.load.fail.bad_joint_type", joint::class.simpleName)
                 }
             }
 
