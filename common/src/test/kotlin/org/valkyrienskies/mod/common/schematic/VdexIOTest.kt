@@ -9,7 +9,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class VdexIOTest {
-    private val expectedHeader = byteArrayOf(0x56, 0x44, 0x45, 0x58, 0x0D, 0x0A, 0x1A, 0x0A)
+    // Disabled because we disabled the custom VDex header for now
+    /*private val expectedHeader = byteArrayOf(0x56, 0x44, 0x45, 0x58, 0x0D, 0x0A, 0x1A, 0x0A)
 
     @Test
     fun `write prefixes file with vdex header`() {
@@ -44,5 +45,5 @@ class VdexIOTest {
         } finally {
             Files.deleteIfExists(path)
         }
-    }
+    }*/
 }

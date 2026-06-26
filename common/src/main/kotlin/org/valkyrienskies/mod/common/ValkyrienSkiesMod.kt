@@ -47,6 +47,7 @@ import org.valkyrienskies.mod.common.util.SplitHandler
 import org.valkyrienskies.mod.common.util.SplittingDisablerAttachment
 import org.valkyrienskies.mod.mixinducks.client.world.ClientChunkCacheDuck
 import org.valkyrienskies.mod.mixinducks.feature.tickets.PlayerKnownShipsDuck
+import org.valkyrienskies.mod.util.ModListUtil
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
 
@@ -95,6 +96,15 @@ object ValkyrienSkiesMod {
         loader.findFirst().orElseThrow {
             IllegalStateException("No VSCoreProvider implementation found via ServiceLoader!")
         }
+    }
+
+    @JvmStatic
+    val modListUtil by lazy {
+        ServiceLoader.load(ModListUtil::class.java, ModListUtil::class.java.classLoader)
+            .findFirst()
+            .orElseThrow {
+                IllegalStateException("No ModListUtil implementation found via ServiceLoader!")
+            }
     }
 
     @JvmStatic
