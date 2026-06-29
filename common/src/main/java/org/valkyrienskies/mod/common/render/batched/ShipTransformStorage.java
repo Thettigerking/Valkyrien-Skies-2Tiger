@@ -43,6 +43,7 @@ public final class ShipTransformStorage {
             GL11.glDeleteTextures(texture);
             texture = 0;
         }
+        currentByteSize = 0;
     }
 
     public void beginFrame() {
@@ -79,15 +80,20 @@ public final class ShipTransformStorage {
 
     public void upload() {
         ensureGlObjects();
-        final int needed = Math.max(BYTES_PER_ENTRY, count * BYTES_PER_ENTRY);
         GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer);
-        final boolean orphaned = currentByteSize != needed;
-        if (orphaned || count > 0) {
-            GL15.nglBufferData(GL31.GL_TEXTURE_BUFFER, needed, arenaPtr, GL15.GL_DYNAMIC_DRAW);
-            currentByteSize = needed;
+        final int capacityBytes = capacityEntries * BYTES_PER_ENTRY;
+        final boolean respec = currentByteSize < capacityBytes;
+        if (respec) {
+            GL15.nglBufferData(GL31.GL_TEXTURE_BUFFER, capacityBytes, MemoryUtil.NULL, GL15.GL_DYNAMIC_DRAW);
+            currentByteSize = capacityBytes;
+        }
+        if (count > 0) {
+            GL15.nglBufferSubData(GL31.GL_TEXTURE_BUFFER, 0L, (long) count * BYTES_PER_ENTRY, arenaPtr);
         }
         GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, 0);
-        if (orphaned) {
+        if (respec) {
+            // Some drivers cache the buffer-data-store reference at glTexBuffer time;
+            // re-associate after (re)allocation so the texture sees the new store.
             GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, texture);
             GL31.glTexBuffer(GL31.GL_TEXTURE_BUFFER, GL30.GL_RGBA32F, buffer);
             GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);

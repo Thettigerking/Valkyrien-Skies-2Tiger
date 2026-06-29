@@ -53,7 +53,6 @@ import org.valkyrienskies.core.util.expand
 import org.valkyrienskies.mod.common.ValkyrienSkiesMod.ASSEMBLE_BLACKLIST
 import org.valkyrienskies.mod.common.entity.ShipMountedToData
 import org.valkyrienskies.mod.common.entity.ShipMountedToDataProvider
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager
 import org.valkyrienskies.mod.common.util.DimensionIdProvider
 import org.valkyrienskies.mod.common.util.EntityDragger.serversidePosition
 import org.valkyrienskies.mod.common.util.EntityShipCollisionUtils
@@ -699,40 +698,16 @@ fun Ship.toWorldCoordinates(x: Double, y: Double, z: Double, dest: Vector3d = Ve
 fun LevelChunkSection.toDenseVoxelUpdate(chunkPos: Vector3ic, level: Level? = null): VsiTerrainUpdate {
     val update = vsCore.newDenseTerrainUpdateBuilder(chunkPos.x(), chunkPos.y(), chunkPos.z())
     val info = BlockStateInfo.cache
-    val mutablePos = if (level == null) null else BlockPos.MutableBlockPos()
-    val baseX = SectionPos.sectionToBlockCoord(chunkPos.x())
-    val baseY = SectionPos.sectionToBlockCoord(chunkPos.y())
-    val baseZ = SectionPos.sectionToBlockCoord(chunkPos.z())
     for (x in 0..15) {
         for (y in 0..15) {
             for (z in 0..15) {
                 val blockState = getBlockState(x, y, z)
                 val defaultBlockType = info.get(blockState)?.second ?: vsCore.blockTypes.air
-                update.addBlock(
-                    x, y, z,
-                    blockState.resolvePhysicsBlockTypeForAirPocket(
-                        level,
-                        mutablePos?.set(baseX + x, baseY + y, baseZ + z),
-                        defaultBlockType,
-                    )
-                )
+                update.addBlock(x, y, z, defaultBlockType)
             }
         }
     }
     return update.build()
-}
-
-private fun BlockState.resolvePhysicsBlockTypeForAirPocket(
-    level: Level?,
-    blockPos: BlockPos?,
-    defaultBlockType: VsiBlockType,
-): VsiBlockType {
-    if (level == null || blockPos == null || !isAir) return defaultBlockType
-    return if (ShipWaterPocketManager.isShipyardBlockPosInShipAirPocket(level, blockPos)) {
-        vsCore.blockTypes.displacementAir
-    } else {
-        defaultBlockType
-    }
 }
 
 /**
@@ -906,4 +881,36 @@ fun AABBic.forEach(f: (Int, Int, Int) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * Will attempt to rename the ServerShip to the newSlug,
+ * but if an existing ship is found with that slug it will
+ * append a number like `-1` to the slug to make them unique.
+ * Not technically required, slugs _can_ be duplicated, but
+ * highly recommended.
+ */
+fun ServerShip.safeRenameTo(level: ServerLevel, newSlug: String) {
+    var newSlug = newSlug
+    var safeLimit = 0
+    while (safeLimit < 50) {
+        safeLimit += 1
+        run breaking@ {
+            level.allShips.forEach {
+                if (it.slug == newSlug) {
+                    val suffix = newSlug.split("-").last()
+                    if (suffix.toIntOrNull() != null) {
+                        val newNum = suffix.toInt() + 1
+                        newSlug = newSlug.dropLast(suffix.length)
+                        newSlug += newNum.toString()
+                    } else {
+                        newSlug += "-1"
+                    }
+                    // search all slugs again
+                    return@breaking
+                }
+            }
+        }
+    }
+    this.slug = newSlug
 }

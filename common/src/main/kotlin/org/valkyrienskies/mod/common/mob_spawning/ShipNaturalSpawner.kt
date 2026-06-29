@@ -24,13 +24,14 @@ import org.joml.Vector3d
 import org.joml.primitives.AABBd
 import org.valkyrienskies.core.api.ships.Ship
 import org.valkyrienskies.mod.common.config.VSGameConfig
-import org.valkyrienskies.mod.common.getShipsIntersecting
+import org.valkyrienskies.mod.common.dimensionId
+import org.valkyrienskies.mod.common.shipObjectWorld
 import org.valkyrienskies.mod.mixin.accessors.world.level.NaturalSpawnerInvoker
 import org.valkyrienskies.mod.mixin.accessors.world.level.NaturalSpawnerSpawnStateInvoker
 
 /**
  * Parallel spawn pass invoked from `NaturalSpawnerMixin`'s TAIL inject after vanilla
- * `NaturalSpawner.spawnForChunk` finishes. For each ship intersecting the world chunk's
+ * `NaturalSpawner.spawnForChunk` finishes. For each loaded ship intersecting the world chunk's
  * vertical column, runs vanilla's `spawnCategoryForPosition` flow in the ship's local cells
  * with biome / structure / difficulty drawn from the ship's world-rendered pos (shipyard
  * chunks aren't in the ticket pipeline; vanilla's `getMobsAt` crashes there). Mob caps are
@@ -92,7 +93,7 @@ object ShipNaturalSpawner {
         val spawnInterval = VSGameConfig.SERVER.Performance.shipMobSpawnIntervalTicks
         val gameTime = level.gameTime
 
-        for (ship in level.getShipsIntersecting(column)) {
+        for (ship in level.shipObjectWorld.loadedShips.getIntersecting(column, level.dimensionId)) {
             if (spawnInterval > 1 &&
                 Math.floorMod(gameTime + ship.id, spawnInterval.toLong()) != 0L
             ) continue
@@ -138,6 +139,8 @@ object ShipNaturalSpawner {
             || shipyardZ < shipAABB.minZ() || shipyardZ > shipAABB.maxZ()
         ) return
 
+        if (level.chunkSource.getChunkNow(shipyardX shr 4, shipyardZ shr 4) == null) return
+
         // Vanilla parity: pick Y across the FULL column [minBuildHeight, surfaceY+1] like
         // `getRandomPosWithin`. Restricting to the ship's narrow Y range would 5-20× the
         // per-attempt success rate vs vanilla's wide-Y throw-away spread.
@@ -171,6 +174,12 @@ object ShipNaturalSpawner {
                     j++
                     spawnX += random.nextInt(6) - random.nextInt(6)
                     spawnZ += random.nextInt(6) - random.nextInt(6)
+
+                    if (spawnX < shipAABB.minX() || spawnX > shipAABB.maxX()
+                        || spawnZ < shipAABB.minZ() || spawnZ > shipAABB.maxZ()
+                    ) continue@groupLoop
+                    if (level.chunkSource.getChunkNow(spawnX shr 4, spawnZ shr 4) == null) continue@groupLoop
+
                     mutable.set(spawnX, pickedY, spawnZ)
 
                     val cx = spawnX + 0.5

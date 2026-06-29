@@ -18,6 +18,7 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.LiquidBlockContainer
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.chunk.ChunkStatus
 import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor
@@ -36,7 +37,6 @@ import org.valkyrienskies.core.api.util.GameTickOnly
 import org.valkyrienskies.core.impl.config.VSCoreConfig
 import org.valkyrienskies.core.internal.ships.VsiServerShip
 import org.valkyrienskies.mod.common.assembly.ShipAssembler.assembleToShipFull
-import org.valkyrienskies.mod.common.air_pockets.ShipWaterPocketManager
 import org.valkyrienskies.mod.common.dimensionId
 import org.valkyrienskies.mod.common.executeIf
 import org.valkyrienskies.mod.common.forEach
@@ -54,11 +54,15 @@ import org.valkyrienskies.mod.common.util.SplittingDisablerAttachment
 import org.valkyrienskies.mod.common.util.toJOML
 import org.valkyrienskies.mod.common.util.toJOMLD
 import org.valkyrienskies.mod.common.vsCore
+import org.valkyrienskies.mod.common.world.VSTicketType
 import org.valkyrienskies.mod.common.yRange
+import org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
 import org.valkyrienskies.mod.util.AIR
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
 import org.valkyrienskies.mod.util.logger
 import org.valkyrienskies.mod.util.relocateBlock
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.locks.LockSupport
 import kotlin.Int.Companion
 import kotlin.math.max
 import kotlin.math.min
@@ -348,9 +352,7 @@ object ShipAssembler {
                     for (sectionY in 0 until worldChunk.sectionsCount) {
                         val sectionPos = Vector3i(pos.x, worldChunk.getSectionYFromSectionIndex(sectionY), pos.z)
                         val section = chunkSections[sectionY] ?: continue
-                        if (section.hasOnlyAir() &&
-                            !ShipWaterPocketManager.hasShipyardAirPocketCellsInSection(level, pos.x, sectionPos.y, pos.z)
-                        ) continue
+                        if (section.hasOnlyAir()) continue
                         val update = section.toDenseVoxelUpdate(sectionPos, level)
                         level.shipObjectWorld.forceUpdateConnectivityChunk(
                             level.dimensionId,
@@ -480,29 +482,61 @@ object ShipAssembler {
         }
 
         // Pre-load all destination chunks.
-        // Uses addRegionTicket to schedule all chunk loads concurrently, then runs the
-        // distance manager + main thread tasks until all chunks reach FULL status.
-        // This is much faster than calling level.getChunk() 1000 times sequentially,
-        // because the chunk pipeline processes multiple chunks on its worker thread pool.
         val preloadStart = System.currentTimeMillis()
         val chunkSource = level.chunkSource
 
-        // Add tickets for all dest chunks first (non-blocking, just queues them)
-        for (cp in allDestChunkPoses) {
-            chunkSource.addRegionTicket(
-                org.valkyrienskies.mod.common.world.VSTicketType.SHIP_CHUNK, cp, 0, cp
-            )
+        BatchAssemblyFastPath.registerAll(allDestChunkPoses)
+        try {
+            for (cp in allDestChunkPoses) {
+                chunkSource.addRegionTicket(
+                    VSTicketType.SHIP_CHUNK, cp, 0, cp
+                )
+            }
+
+            val chunkSourceAccessor = chunkSource as
+                ServerChunkCacheAccessor
+            chunkSourceAccessor.callRunDistanceManagerUpdates()
+
+            val preloadFutures = allDestChunkPoses.map { cp ->
+                chunkSourceAccessor.callGetChunkFutureMainThread(
+                    cp.x, cp.z, ChunkStatus.FULL, false
+                )
+            }
+
+            val allChunksLoaded =
+                CompletableFuture.allOf(*preloadFutures.toTypedArray())
+            val preloadDeadline = System.currentTimeMillis() + 60_000L
+            while (!allChunksLoaded.isDone) {
+                if (!chunkSource.pollTask()) {
+                    if (System.currentTimeMillis() > preloadDeadline) {
+                        ASSEMBLY_LOGGER.error(
+                            "Batch assembly preload timed out after 60s with " +
+                                "${preloadFutures.count { !it.isDone }}/${preloadFutures.size}" +
+                                " dest chunks not FULL! Proceeding to the verification pass."
+                        )
+                        break
+                    }
+                    LockSupport.parkNanos(100_000L)
+                }
+            }
+        } finally {
+            BatchAssemblyFastPath.unregisterAll(allDestChunkPoses)
         }
 
-        // Process tickets and wait for all chunks to reach FULL status.
-        // runDistanceManagerUpdates processes the tickets we just added, creating
-        // ChunkHolders and starting their pipelines. Then getChunk blocks on each
-        // one — but since all pipelines are already running concurrently on the worker
-        // thread pool, most will complete quickly.
-        (chunkSource as org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor)
-            .callRunDistanceManagerUpdates()
         for (cp in allDestChunkPoses) {
-            level.getChunk(cp.x, cp.z)
+            if (chunkSource.getChunkNow(cp.x, cp.z) == null) {
+                ASSEMBLY_LOGGER.error(
+                    "Batch assembly preload: dest chunk $cp failed to reach FULL status via " +
+                        "the fast path, falling back to a blocking vanilla load"
+                )
+                level.getChunk(cp.x, cp.z)
+            }
+        }
+
+        val preloadLightEngine = chunkSource.lightEngine
+        for (cp in allDestChunkPoses) {
+            preloadLightEngine.setLightEnabled(cp, true)
+            chunkSource.getChunkNow(cp.x, cp.z)?.setLightCorrect(true)
         }
 
         val preloadMs = System.currentTimeMillis() - preloadStart
@@ -524,6 +558,11 @@ object ShipAssembler {
 
             if (filteredBlocksWithState.isEmpty()) {
                 level.shipObjectWorld.deleteShip(pending.toShip)
+                for (cp in pending.destChunks) {
+                    level.chunkSource.removeRegionTicket(
+                        VSTicketType.SHIP_CHUNK, cp, 0, cp
+                    )
+                }
                 continue
             }
 
@@ -693,9 +732,7 @@ object ShipAssembler {
                     for (sectionY in 0 until worldChunk.sectionsCount) {
                         val sectionPos = Vector3i(pos.x, worldChunk.getSectionYFromSectionIndex(sectionY), pos.z)
                         val section = chunkSections[sectionY] ?: continue
-                        if (section.hasOnlyAir() &&
-                            !ShipWaterPocketManager.hasShipyardAirPocketCellsInSection(level, pos.x, sectionPos.y, pos.z)
-                        ) continue
+                        if (section.hasOnlyAir()) continue
                         val update = section.toDenseVoxelUpdate(sectionPos, level)
                         level.shipObjectWorld.forceUpdateConnectivityChunk(
                             level.dimensionId, sectionPos.x, sectionPos.y, sectionPos.z, update

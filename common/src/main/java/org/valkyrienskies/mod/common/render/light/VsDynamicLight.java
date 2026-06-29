@@ -94,18 +94,4 @@ public final class VsDynamicLight {
         light.pruneUnused();
         light.upload();
     }
-
-    public static void populateShipEmittersForBatched(final ClientLevel level) {
-        if (level == null) {
-            return;
-        }
-        final VsShipEmitterList emitters = getShipEmitterList();
-        emitters.beginFrame();
-        for (final ClientShip ship : VSGameUtilsKt.getShipObjectWorld(level).getLoadedShips()) {
-            if (ShipRendererKt.getUsesBatchedRenderer(ship)) {
-                emitters.populateFromShip(level, ship);
-            }
-        }
-        emitters.upload();
-    }
 }

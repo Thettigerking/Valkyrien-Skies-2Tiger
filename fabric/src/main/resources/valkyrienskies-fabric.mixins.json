@@ -9,8 +9,6 @@
     "compat.create.MixinControlledContraptionEntity",
     "entity.MixinBoat",
     "entity.MixinContainerEntity",
-    "feature.air_pockets.MixinEntityFluidPushing",
-    "feature.crash_report.CrashReportMixin",
     "feature.explosions.ClipContextMixin",
     "feature.fix_tp_ships_cross_dimension.MixinLevelChunk",
     "feature.mob_spawning.MixinBaseSpawnerShipObstruction",

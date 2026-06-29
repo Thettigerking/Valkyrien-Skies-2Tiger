@@ -24,8 +24,6 @@ import org.valkyrienskies.core.api.util.PhysTickOnly
 import org.valkyrienskies.core.api.world.properties.DimensionId
 import org.valkyrienskies.core.internal.VsiCore
 import org.valkyrienskies.core.internal.VsiCoreClient
-import org.valkyrienskies.mod.air_pockets.client.ShipWaterPocketCurrentShipRenderContext
-import org.valkyrienskies.mod.air_pockets.client.ShipWaterPocketExternalWaterCullRenderContext
 import org.valkyrienskies.mod.api.BlockEntityPhysicsListener
 import org.valkyrienskies.mod.api.EntityPhysicsListener
 import org.valkyrienskies.mod.api.SeatedControllingPlayer
@@ -49,6 +47,7 @@ import org.valkyrienskies.mod.common.util.SplitHandler
 import org.valkyrienskies.mod.common.util.SplittingDisablerAttachment
 import org.valkyrienskies.mod.mixinducks.client.world.ClientChunkCacheDuck
 import org.valkyrienskies.mod.mixinducks.feature.tickets.PlayerKnownShipsDuck
+import org.valkyrienskies.mod.util.ModListUtil
 import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
 
@@ -97,6 +96,15 @@ object ValkyrienSkiesMod {
         loader.findFirst().orElseThrow {
             IllegalStateException("No VSCoreProvider implementation found via ServiceLoader!")
         }
+    }
+
+    @JvmStatic
+    val modListUtil by lazy {
+        ServiceLoader.load(ModListUtil::class.java, ModListUtil::class.java.classLoader)
+            .findFirst()
+            .orElseThrow {
+                IllegalStateException("No ModListUtil implementation found via ServiceLoader!")
+            }
     }
 
     @JvmStatic
@@ -231,23 +239,6 @@ object ValkyrienSkiesMod {
 
     @JvmStatic
     fun initClient() {
-        VSGameEvents.renderShip.on {
-            ShipWaterPocketExternalWaterCullRenderContext.beginShipRender()
-            ShipWaterPocketCurrentShipRenderContext.push(it.ship.id, false)
-        }
-        VSGameEvents.postRenderShip.on {
-            ShipWaterPocketCurrentShipRenderContext.pop()
-            ShipWaterPocketExternalWaterCullRenderContext.endShipRender()
-        }
-
-        VSGameEvents.renderShipSodium.on {
-            ShipWaterPocketExternalWaterCullRenderContext.beginShipRender()
-            ShipWaterPocketCurrentShipRenderContext.push(it.ship.id, true)
-        }
-        VSGameEvents.postRenderShipSodium.on {
-            ShipWaterPocketCurrentShipRenderContext.pop()
-            ShipWaterPocketExternalWaterCullRenderContext.endShipRender()
-        }
     }
 
 }

@@ -91,10 +91,7 @@ public class ValkyrienCommonMixinConfigPlugin implements IMixinConfigPlugin {
         if (mixinClassName.contains("org.valkyrienskies.mod.mixin.mod_compat.optifine")) {
             return renderer == VSRenderer.OPTIFINE;
         }
-        if (
-            mixinClassName.equals("org.valkyrienskies.mod.mixin.feature.air_pockets.MixinLevelReader") ||
-                mixinClassName.equals("org.valkyrienskies.mod.mixin.feature.sculk.MixinVibrationSystemTicker")
-        ) {
+        if (mixinClassName.equals("org.valkyrienskies.mod.mixin.feature.sculk.MixinVibrationSystemTicker")) {
             return supportsInterfaceInjections();
         }
         if (mixinClassName.contains("org.valkyrienskies.mod.mixin.mod_compat.flywheel")) {
@@ -135,13 +132,6 @@ public class ValkyrienCommonMixinConfigPlugin implements IMixinConfigPlugin {
         }
         if (mixinClassName.contains("org.valkyrienskies.mod.mixin.mod_compat.create")) {
             return LoadedMods.getCreate();
-        }
-
-        if (mixinClassName.startsWith("org.valkyrienskies.valkyrienair.mixin.compat.create.")) {
-            return LoadedMods.getCreate();
-        }
-        if (mixinClassName.startsWith("org.valkyrienskies.valkyrienair.mixin.compat.itemphysic.")) {
-            return LoadedMods.getItemPhysic();
         }
 
         // Only load this mixin when ETF is installed

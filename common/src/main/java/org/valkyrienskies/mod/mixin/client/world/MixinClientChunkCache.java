@@ -40,7 +40,6 @@ import org.valkyrienskies.core.api.ships.ClientShip;
 import org.valkyrienskies.core.api.ships.properties.ChunkClaim;
 import org.valkyrienskies.core.internal.world.VsiClientShipWorld;
 import org.valkyrienskies.core.internal.world.chunks.VsiTerrainUpdate;
-import org.valkyrienskies.mod.air_pockets.client.ShipWaterPocketLiquidOverlay;
 import org.valkyrienskies.mod.common.assembly.SeamlessChunksManager;
 import org.valkyrienskies.mod.common.VS2ChunkAllocator;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
@@ -315,7 +314,6 @@ public abstract class MixinClientChunkCache implements ClientChunkCacheDuck {
 
     @Unique
     private LevelChunk removeShipChunk(final int chunkX, final int chunkZ) {
-        ShipWaterPocketLiquidOverlay.invalidateExteriorFluidChunk(this.level, chunkX, chunkZ);
         final LevelChunk chunk = this.shipChunks.remove(ChunkPos.asLong(chunkX, chunkZ));
         this.emptyShipChunks.remove(ChunkPos.asLong(chunkX, chunkZ));
         this.vs$litOnce.remove(ChunkPos.asLong(chunkX, chunkZ));

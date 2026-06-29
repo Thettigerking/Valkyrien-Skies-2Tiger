@@ -448,6 +448,8 @@ public abstract class MixinMinecraftServer implements IShipObjectWorldServerProv
                 }
             }
         }
+
+        ChunkManagement.clearPendingState();
     }
 
     // Only clear these after stopping the server so we can use them when saving
