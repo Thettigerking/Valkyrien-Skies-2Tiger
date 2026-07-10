@@ -420,6 +420,11 @@ object VSGameConfig {
         )
         var defaultSplitGraceTimer = 2
 
+        @ConfigEntry(
+            description = "When a fully-contained vanilla structure is assembled into a ship, move its structure metadata (start + chunk references) onto the ship so in_structure advancements and other structure lookups keep working there."
+        )
+        var relocateStructureMetadata = true
+
         @ConfigCategory(title = "Commands")
         val Commands = COMMANDS()
 
