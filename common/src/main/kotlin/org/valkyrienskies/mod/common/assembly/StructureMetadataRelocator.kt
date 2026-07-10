@@ -3,6 +3,7 @@ package org.valkyrienskies.mod.common.assembly
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet
 import it.unimi.dsi.fastutil.longs.LongSet
 import net.minecraft.core.BlockPos
+import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.ListTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.ChunkPos
@@ -11,6 +12,7 @@ import net.minecraft.world.level.levelgen.structure.Structure
 import net.minecraft.world.level.levelgen.structure.StructureStart
 import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext
+import org.valkyrienskies.mod.common.ValkyrienSkiesMod
 import org.valkyrienskies.mod.common.config.VSGameConfig
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -39,8 +41,12 @@ object StructureMetadataRelocator {
         val dy = destCorner.y - minSource.y
         val dz = destCorner.z - minSource.z
 
+        val structureRegistry = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
         for (start in candidates) {
             if (start.pieces.isEmpty()) continue
+            if (structureRegistry.wrapAsHolder(start.structure)
+                    .`is`(ValkyrienSkiesMod.STRUCTURE_RELOCATION_BLACKLIST)
+            ) continue
             // Carry policy: the structure's full bounding box must be contained in the
             // assembled region, so partially-assembled structures keep their metadata
             // at the origin.
