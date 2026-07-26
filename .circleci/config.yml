@@ -148,7 +148,7 @@ jobs:
       - checkout_and_cache
       - run:
           name: Build
-          command: "./gradlew build --no-daemon --stacktrace"
+          command: "./gradlew build --no-daemon --stacktrace --max-workers 1"
       - save_artifacts
       - save_gradle_cache
 
