@@ -61,7 +61,12 @@ commands:
       - persist_to_workspace:
           root: .
           paths:
-            - artifacts
+              # Built mod artifacts for easy downloading + server test
+              - artifacts
+              # Raw artifacts for publish-to-maven
+              - common/build
+              - forge/build
+              - fabric/build
 
   save_artifacts_and_generate_discord:
     parameters:
@@ -248,10 +253,12 @@ jobs:
   publish_to_maven:
     executor: java_large
     steps:
+      - attach_workspace:
+            at: .
       - checkout_and_cache
       - run:
-          name: Build
-          command: "./gradlew build publish --no-daemon --stacktrace"
+          name: Publish
+          command: "./gradlew publish --no-daemon --stacktrace"
 
   deploy_to_curse:
     executor: java_large
@@ -363,6 +370,8 @@ workflows:
             - valkyrien_maven
 
       - publish_to_maven:
+          requires:
+            - gradle_build
           filters:
             branches:
               only:
