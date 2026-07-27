@@ -253,8 +253,6 @@ jobs:
   publish_to_maven:
     executor: java_large
     steps:
-      - attach_workspace:
-            at: .
       - checkout_and_cache
       - run:
           name: Publish
