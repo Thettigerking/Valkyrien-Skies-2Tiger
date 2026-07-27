@@ -61,12 +61,7 @@ commands:
       - persist_to_workspace:
           root: .
           paths:
-              # Built mod artifacts for easy downloading + server test
               - artifacts
-              # Raw artifacts for publish-to-maven
-              - common/build
-              - forge/build
-              - fabric/build
 
   save_artifacts_and_generate_discord:
     parameters:
@@ -155,6 +150,12 @@ jobs:
           name: Build
           command: "./gradlew build --no-daemon --stacktrace --max-workers 1"
       - save_artifacts
+      - persist_to_workspace:
+          root: .
+          paths:
+            - build
+            - "*/build"          # forge/build, fabric/build, common/build, ...
+            - .gradle            # Gradle's incremental task state
       - save_gradle_cache
 
   fabric_server_test:
@@ -254,6 +255,8 @@ jobs:
     executor: java_large
     steps:
       - checkout_and_cache
+      - attach_workspace:
+          at: .
       - run:
           name: Publish
           command: "./gradlew publish --no-daemon --stacktrace"
