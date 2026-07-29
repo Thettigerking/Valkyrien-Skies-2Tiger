@@ -41,7 +41,7 @@ public abstract class MixinElementPrefixParser {
         IColorHelper colorHelper, CallbackInfo ci) {
 
         if (!VSGameConfig.SERVER.getJei().getSearchProperties()) return;
-        addPrefix(new PrefixInfo<>(VSGameConfig.SERVER.getJei().getSearchPrefix(), () -> SearchMode.REQUIRE_PREFIX, this::valkyrienskies$getCreativeTabsStrings, NumericAttributeStorage::new));
+        addPrefix(new PrefixInfo<>(VSGameConfig.SERVER.getJei().getSearchPrefix().charAt(0), () -> SearchMode.REQUIRE_PREFIX, this::valkyrienskies$getCreativeTabsStrings, NumericAttributeStorage::new));
     }
 
     @Unique

@@ -221,8 +221,8 @@ object VSGameConfig {
         class JEI {
             @ConfigEntry(description = "Enable searching block physical properties in JEI")
             var searchProperties = true
-            @ConfigEntry(description = "Prefix character used for searching block properties")
-            var searchPrefix = '~'
+            @ConfigEntry(description = "Prefix character used for searching block properties. Must be a single character!")
+            var searchPrefix = "~"
         }
 
 
