@@ -34,6 +34,15 @@ object VSGameConfig {
         @ConfigEntry(description = "Renders the VS2 debug HUD with TPS")
         var renderDebugText = false
 
+        @ConfigEntry(description = "Render synchronized retained flood fluid inside ships")
+        var renderFloodedVoxels = true
+
+        @ConfigEntry(description = "Use synchronized retained flood fluid for camera fog and fluid overlays")
+        var renderFloodedFluidFog = true
+
+        @ConfigEntry(description = "Hide external world fluid surfaces inside synchronized dry ship volumes")
+        var renderFluidOcclusion = true
+
         @ConfigEntry(description = "Grace period before a player's camera is no longer considered to be within a sealed area")
         var sealedAreaCameraGracePeriod = 2
 
