@@ -526,6 +526,20 @@ object VSGameConfig {
                 max = 4.0
             )
             var configCommandPerms = 2
+
+            @ConfigEntry(
+                description = "The permission level required to use the /vs gravity command",
+                min = 0.0,
+                max = 4.0
+            )
+            var setGravityCommandPerms = 2
+
+            @ConfigEntry(
+                description = "The permission level required to use the /vs splitting command",
+                min = 0.0,
+                max = 4.0
+            )
+            var setSplittingCommandPerms = 2
         }
     }
 
