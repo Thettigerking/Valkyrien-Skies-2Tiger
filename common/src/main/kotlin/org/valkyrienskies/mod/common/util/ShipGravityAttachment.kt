@@ -4,6 +4,7 @@ import org.joml.Vector3d
 import org.valkyrienskies.core.api.ships.PhysShip
 import org.valkyrienskies.core.api.ships.ShipPhysicsListener
 import org.valkyrienskies.core.api.world.PhysLevel
+import org.jetbrains.annotations.ApiStatus.*
 
 /**
  * This attachment is a unified way for addons to set the gravity per-ship.
@@ -17,7 +18,12 @@ import org.valkyrienskies.core.api.world.PhysLevel
  *
  * If [gravityOverride] is `null`, this attachment will not apply any force.
  * The ship will have normal gravity for whatever dimension it's in.
+ *
+ * This class is experimental! It will be removed from the API *entirely*
+ * once there is a viable per-ship/body gravity property in core. 
+ * It only exists as a _temporary_ solution for addons that need this unified system.
  */
+@Experimental
 class ShipGravityAttachment(@Volatile var gravityOverride: Double? = null): ShipPhysicsListener {
     override fun physTick(
         physShip: PhysShip, physLevel: PhysLevel
