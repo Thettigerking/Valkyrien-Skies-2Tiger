@@ -3,7 +3,6 @@ package org.valkyrienskies.mod.mixin.mod_compat.jei;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import mezz.jei.api.helpers.IColorHelper;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.common.config.IIngredientFilterConfig;
@@ -23,7 +22,8 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.valkyrienskies.mod.common.config.MassDatapackResolver;
+import org.valkyrienskies.mod.client.ClientBlockInfo;
+import org.valkyrienskies.mod.client.ClientBlockStateInfo;
 import org.valkyrienskies.mod.common.config.VSGameConfig;
 import org.valkyrienskies.mod.compat.jei.NumericAttributeStorage;
 
@@ -40,8 +40,9 @@ public abstract class MixinElementPrefixParser {
     private void injectInit(IIngredientManager ingredientManager, IIngredientFilterConfig config,
         IColorHelper colorHelper, CallbackInfo ci) {
 
-        if (!VSGameConfig.SERVER.getJei().getSearchProperties()) return;
-        addPrefix(new PrefixInfo<>(VSGameConfig.SERVER.getJei().getSearchPrefix().charAt(0), () -> SearchMode.REQUIRE_PREFIX, this::valkyrienskies$getCreativeTabsStrings, NumericAttributeStorage::new));
+        if (!ClientBlockStateInfo.INSTANCE.getClientHasMassInfo()) return;
+        if (!VSGameConfig.CLIENT.getJeiSearch()) return;
+        addPrefix(new PrefixInfo<>(VSGameConfig.CLIENT.getSearchPrefix().charAt(0), () -> SearchMode.REQUIRE_PREFIX, this::valkyrienskies$getCreativeTabsStrings, NumericAttributeStorage::new));
     }
 
     @Unique
@@ -59,11 +60,11 @@ public abstract class MixinElementPrefixParser {
 
             for (BlockState state : block.getStateDefinition().getPossibleStates()) {
 
-                // Hardcoding these to the datapack system and not just a block provider is a little sus, but I don't think
-                // there's any alternative right now, only the MassDatapackResolver has the friction/elasticity values.
-                double mass = Objects.requireNonNullElse(MassDatapackResolver.INSTANCE.getBlockStateMass(state), 0.0);
-                double friction = Objects.requireNonNullElse(MassDatapackResolver.INSTANCE.getBlockStateFriction(state), 0.0);
-                double elasticity = Objects.requireNonNullElse(MassDatapackResolver.INSTANCE.getBlockStateElasticity(state), 0.0);
+                // grab values from ClientBlockStateInfo instead of using the MassDatapackResolver as on the client-side values are stored there
+                ClientBlockInfo blockInfo = ClientBlockStateInfo.INSTANCE.getBlockInfo(state);
+                double mass = blockInfo != null ? blockInfo.getMass() : 0.0;
+                double friction = blockInfo != null ? blockInfo.getFriction() : 0.0;
+                double elasticity = blockInfo != null ? blockInfo.getElasticity() : 0.0;
 
                 // JEI requires our data passed to searcher be a string so we format the string and
                 // un-format it later

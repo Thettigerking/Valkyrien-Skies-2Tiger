@@ -77,7 +77,7 @@ object VSGamePackets {
             if (syncBsi.blockState2VS.isEmpty()) {
                 ClientBlockStateInfo.disable()
             } else {
-                ClientBlockStateInfo.shouldAddMassTooltip = true
+                ClientBlockStateInfo.clientHasMassInfo = true
                 syncBsi.blockState2VS.forEach { (id, state) ->
                     ClientBlockStateInfo.registerBlockInfo(ResourceLocation.of(id, ':'), state)
                 }

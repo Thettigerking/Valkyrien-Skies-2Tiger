@@ -25,7 +25,7 @@ public class MixinBlockItem {
     private void ValkyrienSkies$addMassToTooltip(final ItemStack itemStack, final Level level,
         final List<Component> list, final TooltipFlag tooltipFlag, final CallbackInfo ci) {
         final MassTooltipVisibility visibility = VSGameConfig.CLIENT.getTooltip().getMassTooltipVisibility();
-        if (visibility.isVisible(tooltipFlag) && ClientBlockStateInfo.INSTANCE.getShouldAddMassTooltip()) {
+        if (visibility.isVisible(tooltipFlag) && ClientBlockStateInfo.INSTANCE.getClientHasMassInfo()) {
             try {
                 final BlockItem item = (BlockItem) itemStack.getItem();
                 final ClientBlockInfo info = ClientBlockStateInfo.INSTANCE.getBlockInfo(BuiltInRegistries.BLOCK.getKey(item.getBlock()));

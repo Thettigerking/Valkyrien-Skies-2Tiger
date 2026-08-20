@@ -141,6 +141,11 @@ object VSGameConfig {
         @ConfigEntry(description = "Project ships into the world's lighting at render time so ships occlude sunlight on the ground beneath them and ship-internal torches illuminate nearby world blocks (sodium/embeddium only). Experimental — overrides sodium's stock world-chunk shader. Disable for the default vanilla behavior where ships don't affect world lighting.")
         var dynamicShipToWorldLighting = false
 
+        @ConfigEntry(description = "Enable searching by block physical properties in JEI")
+        var jeiSearch = true
+
+        @ConfigEntry(description = "Prefix character used for searching block properties. Must be a single character!")
+        var searchPrefix = "~"
     }
 
     class Server {
@@ -223,17 +228,6 @@ object VSGameConfig {
             @ConfigEntry(description = "Show the Ship Mass in the label")
             var showShipMass = true
         }
-
-        @ConfigCategory(title = "JEI")
-        val Jei = JEI()
-
-        class JEI {
-            @ConfigEntry(description = "Enable searching block physical properties in JEI")
-            var searchProperties = true
-            @ConfigEntry(description = "Prefix character used for searching block properties. Must be a single character!")
-            var searchPrefix = "~"
-        }
-
 
         @ConfigCategory(title = "CBC")
         val Cbc = CBC()
@@ -406,7 +400,7 @@ object VSGameConfig {
         var minScaling = 0.25
 
         @ConfigEntry(
-            description = "If players can see block info (mass, friction, elasticity)"
+            description = "If players can see block info (mass, friction, elasticity). Disabling this will also disable JEI search."
         )
         var allowBlockInfo = true // they call me jade because i be showin block info
 
