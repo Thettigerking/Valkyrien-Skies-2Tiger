@@ -70,6 +70,12 @@ object MassDatapackResolver : BlockStateInfoProvider {
     override fun getBlockStateMass(blockState: BlockState): Double? =
         map[BuiltInRegistries.BLOCK.getKey(blockState.block)]?.mass
 
+    fun getBlockStateFriction(blockState: BlockState): Double? =
+        map[BuiltInRegistries.BLOCK.getKey(blockState.block)]?.friction
+
+    fun getBlockStateElasticity(blockState: BlockState): Double? =
+        map[BuiltInRegistries.BLOCK.getKey(blockState.block)]?.elasticity
+
     override fun getBlockStateType(blockState: BlockState): VsiBlockType? {
         val vsState = mcBlockStateToVs[blockState] ?: return null
         return vsCore.blockTypes.getType(vsState)

@@ -18,10 +18,10 @@ object ClientBlockStateInfo {
     private val idToBlockData: MutableMap<ResourceLocation, ClientBlockInfo> = HashMap()
 
     /**
-     * Set by server and used on client side, disables mass tooltip completely if false
+     * True if mass gets synced to client.
+     * Only serves to disable mass tooltip and jei search when mass doesn't get synced to prevent confusion
      */
-    @ApiStatus.Internal
-    var shouldAddMassTooltip = false
+    var clientHasMassInfo = false
 
     /**
      * Used to register clientside block data. For internal use only.
@@ -40,7 +40,7 @@ object ClientBlockStateInfo {
      */
     @ApiStatus.Internal
     fun disable() {
-        shouldAddMassTooltip = false
+        clientHasMassInfo = false
         idToBlockData.clear()
     }
 }
