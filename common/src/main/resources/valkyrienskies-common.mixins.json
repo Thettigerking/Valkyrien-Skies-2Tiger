@@ -395,7 +395,6 @@
     "world.level.lighting.LayerLightSectionStorageInvoker",
     "world.level.lighting.LightEngineStorageAccessor",
     "world.level.lighting.MixinThreadedLevelLightEngine",
-    "world.ticks.MixinLevelTicks",
     "accessors.world.ticks.LevelTicksAccessor"
   ],
   "client": [
