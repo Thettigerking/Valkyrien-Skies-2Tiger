@@ -2,7 +2,9 @@ package org.valkyrienskies.mod.util
 
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.Clearable
+import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
@@ -12,10 +14,29 @@ import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.chunk.LevelChunk
+import net.minecraft.world.ticks.ScheduledTick
 import org.valkyrienskies.core.api.ships.ServerShip
+import org.valkyrienskies.mod.mixin.accessors.world.ticks.LevelTicksAccessor
+import java.util.stream.Collectors
 
 val AIR = Blocks.AIR.defaultBlockState()
 
+fun findPendingBlockTicks(level: Level, pos: BlockPos): List<ScheduledTick<Block>> {
+    val serverLevel = level as? ServerLevel ?: return emptyList()
+    @Suppress("UNCHECKED_CAST")
+    val accessor = serverLevel.blockTicks as LevelTicksAccessor<Block>
+    val container = accessor.`vs$getAllContainers`()[ChunkPos.asLong(pos)] ?: return emptyList()
+    return container.getAll().filter { it.pos() == pos }.collect(Collectors.toList())
+}
+
+fun rescheduleBlockTicks(level: Level, to: BlockPos, pendingTicks: List<ScheduledTick<Block>>) {
+    if (pendingTicks.isEmpty()) return
+    val serverLevel = level as? ServerLevel ?: return
+    for (tick in pendingTicks) {
+        val remainingDelay = (tick.triggerTick() - serverLevel.gameTime).coerceAtLeast(0L).toInt()
+        serverLevel.scheduleTick(to, tick.type(), remainingDelay, tick.priority())
+    }
+}
 /**
  * Relocate block
  *
@@ -33,7 +54,9 @@ fun relocateBlock(
     var state = fromChunk.getBlockState(from)
     val entity = fromChunk.getBlockEntity(from)
 	val level = toChunk.level
-	
+
+    val pendingTicks = findPendingBlockTicks(fromChunk.level, from)
+
     val tag = entity?.let {
         val tag = it.saveWithFullMetadata()
         tag.putInt("x", to.x)
@@ -71,6 +94,8 @@ fun relocateBlock(
 
         be.load(it)
     }
+
+    rescheduleBlockTicks(level, to, pendingTicks)
 }
 
 /**

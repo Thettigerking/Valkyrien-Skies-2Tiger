@@ -63,8 +63,10 @@ import org.valkyrienskies.mod.compat.create.CreateAssemblyCompat
 import org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
 import org.valkyrienskies.mod.util.AIR
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
+import org.valkyrienskies.mod.util.findPendingBlockTicks
 import org.valkyrienskies.mod.util.logger
 import org.valkyrienskies.mod.util.relocateBlock
+import org.valkyrienskies.mod.util.rescheduleBlockTicks
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.locks.LockSupport
 import kotlin.Int.Companion
@@ -303,6 +305,15 @@ object ShipAssembler {
             }
         }
 
+        val pendingTicksByPos = if (removeOriginal) {
+            blocks.mapNotNull { pos ->
+                val ticks = findPendingBlockTicks(level, pos)
+                if (ticks.isNotEmpty()) pos to ticks else null
+            }.toMap()
+        } else {
+            emptyMap()
+        }
+
         // ========== Removing Old Blocks
         if (removeOriginal) {
 
@@ -386,6 +397,13 @@ object ShipAssembler {
             BlockPos(cornerOfShip.x + dx, cornerOfShip.y + dy, cornerOfShip.z + dz)
         }
         initSkyLightForShip(level, moveDestPositions)
+
+        if (pendingTicksByPos.isNotEmpty()) {
+            blocks.forEachIndexed { index, srcPos ->
+                val ticks = pendingTicksByPos[srcPos] ?: return@forEachIndexed
+                rescheduleBlockTicks(level, moveDestPositions[index], ticks)
+            }
+        }
 
         // ========== Resume Chunk Updates
         val timeAtExecution = level.server.tickCount
