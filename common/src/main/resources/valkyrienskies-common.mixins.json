@@ -20,6 +20,7 @@
     "accessors.world.level.block.StairBlockAccessor",
     "accessors.world.level.pathfinder.PathAccessor",
     "accessors.world.level.pathfinder.WalkNodeEvaluatorInvoker",
+    "accessors.world.ticks.LevelTicksAccessor",
     "commands.argument.selector.MixinEntitySelectorParser",
     "entity.MixinEntity",
     "feature.ai.bell.MixinBellBlockEntity",
@@ -394,8 +395,7 @@
     "world.level.lighting.LayerLightSectionStorageAccessor",
     "world.level.lighting.LayerLightSectionStorageInvoker",
     "world.level.lighting.LightEngineStorageAccessor",
-    "world.level.lighting.MixinThreadedLevelLightEngine",
-    "accessors.world.ticks.LevelTicksAccessor"
+    "world.level.lighting.MixinThreadedLevelLightEngine"
   ],
   "client": [
     "accessors.client.multiplayer.ClientLevelAccessor",
