@@ -38,6 +38,7 @@ import org.valkyrienskies.core.impl.config.VSCoreConfig
 import org.valkyrienskies.core.internal.ships.VsiServerShip
 import org.valkyrienskies.mod.common.assembly.ShipAssembler.assembleToShipFull
 import org.valkyrienskies.mod.common.BlockStateInfo
+import org.valkyrienskies.mod.common.config.VSGameConfig
 import org.valkyrienskies.mod.common.dimensionId
 import org.valkyrienskies.mod.common.executeIf
 import org.valkyrienskies.mod.common.forEach
@@ -129,9 +130,8 @@ object ShipAssembler {
         val weightedSum = Vector3d()
 
         for ((srcPos, state) in blocksWithState) {
-            val mass = BlockStateInfo.get(state)?.first ?: 1.0
+            val mass = BlockStateInfo.get(state)?.first ?: VSGameConfig.SERVER.defaultBlockMass
             if (mass <= 0.0) continue
-
             val dx = srcPos.x - minStructurePos.x
             val dy = srcPos.y - minStructurePos.y
             val dz = srcPos.z - minStructurePos.z
