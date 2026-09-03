@@ -6,11 +6,12 @@ import com.simibubi.create.content.kinetics.belt.BeltBlock
 import com.simibubi.create.content.kinetics.belt.BeltBlockEntity
 import net.minecraft.core.BlockPos
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.Block
 
 object CreateAssemblyCompat {
 
     @JvmStatic
-    fun fixMovedKineticBlockEntities(level: Level, positions: Collection<BlockPos>) {
+    fun updateMovedKineticBlockEntities(level: Level, positions: Collection<BlockPos>) {
         for (pos in positions) {
             val blockEntity = level.getBlockEntity(pos)
             if (blockEntity is KineticBlockEntity) {
@@ -41,14 +42,17 @@ object CreateAssemblyCompat {
 
     @JvmStatic
     fun breakSplitBeltChains(level: Level, candidateBlocks: Set<BlockPos>) {
-        val visitedChainStarts = HashSet<BlockPos>()
-        val chainsToBreak = ArrayList<List<BlockPos>>()
+        val visitedPositions = HashSet<BlockPos>()
+
         for (pos in candidateBlocks) {
+            if (pos in visitedPositions) continue
+
             val state = level.getBlockState(pos)
             if (!AllBlocks.BELT.has(state)) continue
 
             var start = pos
             var startState = state
+
             while (true) {
                 val prev = BeltBlock.nextSegmentPosition(startState, start, false) ?: break
                 if (!level.isLoaded(prev)) break
@@ -58,18 +62,12 @@ object CreateAssemblyCompat {
                 startState = prevState
             }
 
-            if (!visitedChainStarts.add(start)) continue
-
             val chain = BeltBlock.getBeltChain(level, start)
+            visitedPositions.addAll(chain)
+
             if (chain.size < 2) continue
+            if (candidateBlocks.containsAll(chain)) continue
 
-            if (!candidateBlocks.containsAll(chain)) {
-                chainsToBreak.add(chain)
-            }
-        }
-
-        //break belt
-        for (chain in chainsToBreak) {
             val first = chain[0]
             if (AllBlocks.BELT.has(level.getBlockState(first))) {
                 level.destroyBlock(first, true)

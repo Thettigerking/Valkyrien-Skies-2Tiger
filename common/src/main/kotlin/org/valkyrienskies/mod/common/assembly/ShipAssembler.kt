@@ -1,31 +1,21 @@
 package org.valkyrienskies.mod.common.assembly
 
-import com.google.common.collect.Lists
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import net.minecraft.core.BlockPos
-import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
-import net.minecraft.util.RandomSource
 import net.minecraft.world.Clearable
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.Level
-import net.minecraft.world.level.LevelAccessor
 import net.minecraft.world.level.LevelReader
 import net.minecraft.world.level.ServerLevelAccessor
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.level.block.LiquidBlockContainer
-import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.chunk.ChunkStatus
-import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate
-import net.minecraft.world.phys.shapes.BitSetDiscreteVoxelShape
-import net.minecraft.world.phys.shapes.DiscreteVoxelShape
 import org.joml.Quaterniond
 import org.joml.RoundingMode
 import org.joml.Vector3d
@@ -36,7 +26,6 @@ import org.valkyrienskies.core.api.ships.properties.ShipId
 import org.valkyrienskies.core.api.util.GameTickOnly
 import org.valkyrienskies.core.impl.config.VSCoreConfig
 import org.valkyrienskies.core.internal.ships.VsiServerShip
-import org.valkyrienskies.mod.common.assembly.ShipAssembler.assembleToShipFull
 import org.valkyrienskies.mod.common.BlockStateInfo
 import org.valkyrienskies.mod.common.config.VSGameConfig
 import org.valkyrienskies.mod.common.dimensionId
@@ -65,13 +54,9 @@ import org.valkyrienskies.mod.util.AIR
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
 import org.valkyrienskies.mod.util.findPendingBlockTicks
 import org.valkyrienskies.mod.util.logger
-import org.valkyrienskies.mod.util.relocateBlock
 import org.valkyrienskies.mod.util.rescheduleBlockTicks
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.locks.LockSupport
-import kotlin.Int.Companion
-import kotlin.math.max
-import kotlin.math.min
 
 object ShipAssembler {
 
@@ -125,9 +110,8 @@ object ShipAssembler {
     private fun computeExpectedCenterOfMass(
         blocksWithState: List<Pair<BlockPos, BlockState>>,
         minStructurePos: BlockPos,
-        cornerOfShip: BlockPos,
-        geometricCenterFallback: Vector3d
-    ): Vector3d {
+        cornerOfShip: BlockPos
+    ): Vector3d? {
         var totalMass = 0.0
         val weightedSum = Vector3d()
 
@@ -146,11 +130,7 @@ object ShipAssembler {
             totalMass += mass
         }
 
-        // Fall back to the geometric center of the ship's bounding box (the old, pre-fix behavior) if we
-        // somehow have no usable mass data - this keeps behavior unchanged rather than risking a divide by 0.
-        if (totalMass <= 0.0) {
-            return Vector3d(geometricCenterFallback)
-        }
+        if (totalMass <= 0.0) return null
 
         return weightedSum.div(totalMass)
     }
@@ -189,7 +169,7 @@ object ShipAssembler {
             toShip.id, level.server.tickCount.toLong()
         )
 
-        val (wasSuccessful, _, toCenter, expectedCenterOfMass) = moveBlocksFromTo(level, blocks, fromShip, toShip, minB, maxB, toShip.chunkClaim.getCenterBlockCoordinates(level.yRange, Vector3i()))
+        val (wasSuccessful, _, toCenter, expectedCenterOfMass) = moveBlocksFromToWithCenterOfMass(level, blocks, fromShip, toShip, minB, maxB, toShip.chunkClaim.getCenterBlockCoordinates(level.yRange, Vector3i()))
 
         if (!wasSuccessful) {
             level.shipObjectWorld.deleteShip(toShip)
@@ -221,11 +201,19 @@ object ShipAssembler {
     data class MoveContext(
         val wasSuccessful: Boolean,
         val fromCenter: Vector3d,
+        val toCenter: Vector3d
+    )
+    private val failedMove = MoveContext(false, Vector3d(), Vector3d())
+
+    data class MoveContextWithCenterOfMass(
+        val wasSuccessful: Boolean,
+        val fromCenter: Vector3d,
         val toCenter: Vector3d,
         val expectedCenterOfMass: Vector3d = Vector3d()
     )
-    private val failedMove = MoveContext(false, Vector3d(), Vector3d(), Vector3d())
+    private val failedMoveWithCenterOfMass = MoveContextWithCenterOfMass(false, Vector3d(), Vector3d(), Vector3d())
 
+    // old method
     @JvmStatic
     @OptIn(GameTickOnly::class)
     fun moveBlocksFromTo(
@@ -236,6 +224,22 @@ object ShipAssembler {
         toCenter: Vector3i,
         removeOriginal: Boolean = true)
         : MoveContext {
+        val result = moveBlocksFromToWithCenterOfMass(
+            level, blocks, fromShip, toShip, minStructurePos, maxStructurePos, toCenter, removeOriginal
+        )
+        return MoveContext(result.wasSuccessful, result.fromCenter, result.toCenter)
+    }
+
+    @JvmStatic
+    @OptIn(GameTickOnly::class)
+    fun moveBlocksFromToWithCenterOfMass(
+        level: ServerLevel,
+        blocks: Set<BlockPos>,
+        fromShip: ServerShip?, toShip: ServerShip?,
+        minStructurePos: BlockPos, maxStructurePos: BlockPos,
+        toCenter: Vector3i,
+        removeOriginal: Boolean = true)
+        : MoveContextWithCenterOfMass {
 
         if (removeOriginal && LoadedMods.create) {
             CreateAssemblyCompat.breakSplitBeltChains(level, blocks)
@@ -246,7 +250,7 @@ object ShipAssembler {
             if (!state.isAir && !state.inAssemblyBlacklist()) pos to state else null
         }
         val blocks = blocksWithState.map { it.first }.toSet()
-        if (blocks.isEmpty()) return failedMove
+        if (blocks.isEmpty()) return failedMoveWithCenterOfMass
 
         val fromId = fromShip?.id ?: -1L
         val eventData = mutableMapOf<String, CompoundTag>()
@@ -370,8 +374,8 @@ object ShipAssembler {
         val centerOfShip = cornerOfShip.toJOMLD().add(offset)
 
         val expectedCenterOfMass = computeExpectedCenterOfMass(
-            blocksWithState, minStructurePos, cornerOfShip, centerOfShip
-        )
+            blocksWithState, minStructurePos, cornerOfShip
+        ) ?: Vector3d(centerOfShip)
 
         val structureSettings = StructurePlaceSettings().addProcessor(
             ICopyableProcessor(
@@ -427,7 +431,7 @@ object ShipAssembler {
             VSAssemblyEvents.onPasteAfterBlocksAreLoaded.emit(VSAssemblyEvents.OnPasteAfterBlocksAreLoaded(level, fromShip, toShip, Pair(fromCenter, centerOfShip), eventData))
 
             if (LoadedMods.create) {
-                CreateAssemblyCompat.fixMovedKineticBlockEntities(level, moveDestPositions)
+                CreateAssemblyCompat.updateMovedKineticBlockEntities(level, moveDestPositions)
             }
             //force update connectivity because this new assemblyslop doesn't update it :(
             if (VSCoreConfig.SERVER.sp.enableConnectivity) {
@@ -458,7 +462,7 @@ object ShipAssembler {
             }
         }
 
-        return MoveContext(true, fromCenter, centerOfShip, expectedCenterOfMass)
+        return MoveContextWithCenterOfMass(true, fromCenter, centerOfShip, expectedCenterOfMass)
     }
 
     @JvmStatic
@@ -790,8 +794,8 @@ object ShipAssembler {
 
             // Set kinematics
             val expectedCenterOfMass = computeExpectedCenterOfMass(
-                filteredBlocksWithState, pending.minB, cornerOfShip, centerOfShip
-            )
+                filteredBlocksWithState, pending.minB, cornerOfShip
+            ) ?: Vector3d(centerOfShip)
             val posOffset = Vector3d(expectedCenterOfMass)
                 .sub(Vector3d(centerOfShip))
                 .let { pending.fromShip?.shipToWorld?.transformDirection(it) ?: it }
@@ -839,7 +843,7 @@ object ShipAssembler {
             }
 
             if (allKineticFixPositions.isNotEmpty()) {
-                CreateAssemblyCompat.fixMovedKineticBlockEntities(level, allKineticFixPositions)
+                CreateAssemblyCompat.updateMovedKineticBlockEntities(level, allKineticFixPositions)
             }
 
             // Batch connectivity updates for all destination chunks

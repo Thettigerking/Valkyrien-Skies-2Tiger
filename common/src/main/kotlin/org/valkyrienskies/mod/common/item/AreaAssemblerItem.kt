@@ -66,7 +66,7 @@ class AreaAssemblerItem(
                                 ShipAssembler.assembleToShip(level, BlockPos.betweenClosed(lowerCorner, upperCorner).map{ it.mutable() }.toSet(), 1.0)
                             } catch (e: Throwable) {
                                 ASSEMBLY_LOGGER.warn("Assembly failed (possibly nothing left to assemble)", e)
-                                ctx.player?.sendSystemMessage(Component.literal("Nothing to assemble!"))
+                                ctx.player?.sendSystemMessage(Component.translatable("argument.valkyrienskies.ship.area_assembler.nothing_to_assemble"))
                                 null
                             }
                         }

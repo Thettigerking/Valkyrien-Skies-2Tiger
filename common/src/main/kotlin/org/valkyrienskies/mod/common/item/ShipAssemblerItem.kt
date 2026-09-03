@@ -44,7 +44,7 @@ class ShipAssemblerItem(properties: Properties) : VSItem(properties) {
                         Component.translatable("command.valkyrienskies.shipify.success_one", shipData.slug)
                     )
                 } else {
-                    ctx.player?.sendSystemMessage(Component.literal("Nothing to assemble!"))
+                    ctx.player?.sendSystemMessage(Component.literal("argument.valkyrienskies.ship.area_assembler.nothing_to_assemble"))
                 }
             }
         }
