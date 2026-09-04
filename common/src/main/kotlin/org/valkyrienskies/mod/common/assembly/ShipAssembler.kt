@@ -52,9 +52,8 @@ import org.valkyrienskies.mod.compat.create.CreateAssemblyCompat
 import org.valkyrienskies.mod.mixin.accessors.server.level.ServerChunkCacheAccessor
 import org.valkyrienskies.mod.util.AIR
 import org.valkyrienskies.mod.util.StructureTemplateFillFromVoxelSet
-import org.valkyrienskies.mod.util.findPendingBlockTicks
 import org.valkyrienskies.mod.util.logger
-import org.valkyrienskies.mod.util.rescheduleBlockTicks
+import org.valkyrienskies.mod.util.resetIfPressedButton
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.locks.LockSupport
 
@@ -269,10 +268,18 @@ object ShipAssembler {
             val splittingDisabler = fromShip.getAttachment(SplittingDisablerAttachment::class.java)
             wasSplittingEnabled = splittingDisabler?.canSplit() != false
             splittingDisabler?.disableSplitting()
+
         }
 
         // ========== Copy Blocks
         VSAssemblyEvents.beforeCopy.emit(VSAssemblyEvents.BeforeCopy(level, oldMin, oldMax, fromCenter, fromShip, blocks, eventData))
+
+        for ((pos, state) in blocksWithState) {
+            val resetState = state.resetIfPressedButton()
+            if (resetState !== state) {
+                level.getChunkAt(pos).setBlockState(pos, resetState, false)
+            }
+        }
 
         val template = StructureTemplate()
         template as StructureTemplateFillFromVoxelSet
@@ -307,15 +314,6 @@ object ShipAssembler {
             with(vsCore.simplePacketNetworking) {
                 sendStopChunkUpdates(chunkPosesJOML, player.playerWrapper)
             }
-        }
-
-        val pendingTicksByPos = if (removeOriginal) {
-            blocks.mapNotNull { pos ->
-                val ticks = findPendingBlockTicks(level, pos)
-                if (ticks.isNotEmpty()) pos to ticks else null
-            }.toMap()
-        } else {
-            emptyMap()
         }
 
         // ========== Removing Old Blocks
@@ -401,13 +399,6 @@ object ShipAssembler {
             BlockPos(cornerOfShip.x + dx, cornerOfShip.y + dy, cornerOfShip.z + dz)
         }
         initSkyLightForShip(level, moveDestPositions)
-
-        if (pendingTicksByPos.isNotEmpty()) {
-            blocks.forEachIndexed { index, srcPos ->
-                val ticks = pendingTicksByPos[srcPos] ?: return@forEachIndexed
-                rescheduleBlockTicks(level, moveDestPositions[index], ticks)
-            }
-        }
 
         // ========== Resume Chunk Updates
         val timeAtExecution = level.server.tickCount
@@ -722,7 +713,7 @@ object ShipAssembler {
                     // which are unnecessary while dest chunks are stalled.
                     // LevelChunk.setBlockState handles block entity creation internally.
                     val destChunk = level.getChunkAt(destPos)
-                    destChunk.setBlockState(destPos, state, false)
+                    destChunk.setBlockState(destPos, state.resetIfPressedButton(), false)
                     beTag?.let { tag ->
                         tag.putInt("x", destPos.x)
                         tag.putInt("y", destPos.y)
@@ -739,6 +730,13 @@ object ShipAssembler {
                 }
             } else {
                 // Full StructureTemplate path for larger block sets
+                for ((pos, state) in filteredBlocksWithState) {
+                    val resetState = state.resetIfPressedButton()
+                    if (resetState !== state) {
+                        level.getChunkAt(pos).setBlockState(pos, resetState, false)
+                    }
+                }
+
                 val template = StructureTemplate()
                 template as StructureTemplateFillFromVoxelSet
                 template.`vs$fillFromVoxelSet`(

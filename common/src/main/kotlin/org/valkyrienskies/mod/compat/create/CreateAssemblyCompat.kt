@@ -68,9 +68,11 @@ object CreateAssemblyCompat {
             if (chain.size < 2) continue
             if (candidateBlocks.containsAll(chain)) continue
 
-            val first = chain[0]
-            if (AllBlocks.BELT.has(level.getBlockState(first))) {
-                level.destroyBlock(first, true)
+            val disconnectPoint = chain.firstOrNull { it !in candidateBlocks }
+                ?: chain.lastOrNull { it !in candidateBlocks }
+
+            if (disconnectPoint != null && AllBlocks.BELT.has(level.getBlockState(disconnectPoint))) {
+                level.destroyBlock(disconnectPoint, true)
             }
         }
     }

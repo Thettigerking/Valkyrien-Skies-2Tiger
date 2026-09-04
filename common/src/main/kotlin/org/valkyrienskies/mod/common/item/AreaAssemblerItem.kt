@@ -55,20 +55,24 @@ class AreaAssemblerItem(
                         val lowerCorner = BlockPos(blockAABB.minX, blockAABB.minY, blockAABB.minZ)
                         val upperCorner = BlockPos(blockAABB.maxX, blockAABB.maxY, blockAABB.maxZ)
 
-                        val ship = if (classicAssembler) {
-                            val denseSet = DenseBlockPosSet()
-                            BlockPos.betweenClosed(lowerCorner, upperCorner).forEach{ denseSet.add(it.toJOML()) }
-                            val center = lowerCorner.toJOMLd().add(upperCorner.toJOMLd()).div(2.0)
-                            createNewShipWithBlocks(BlockPos.containing(center.toMinecraft()), denseSet, level)
-                        }
-                        else {
-                            try {
-                                ShipAssembler.assembleToShip(level, BlockPos.betweenClosed(lowerCorner, upperCorner).map{ it.mutable() }.toSet(), 1.0)
-                            } catch (e: Throwable) {
-                                ASSEMBLY_LOGGER.warn("Assembly failed (possibly nothing left to assemble)", e)
-                                ctx.player?.sendSystemMessage(Component.translatable("argument.valkyrienskies.ship.area_assembler.nothing_to_assemble"))
-                                null
+                        val ship = try {
+                            if (classicAssembler) {
+                                val denseSet = DenseBlockPosSet()
+                                BlockPos.betweenClosed(lowerCorner, upperCorner).forEach{ denseSet.add(it.toJOML()) }
+                                val center = lowerCorner.toJOMLd().add(upperCorner.toJOMLd()).div(2.0)
+                                createNewShipWithBlocks(BlockPos.containing(center.toMinecraft()), denseSet, level)
                             }
+                            else {
+                                ShipAssembler.assembleToShip(level, BlockPos.betweenClosed(lowerCorner, upperCorner).map{ it.mutable() }.toSet(), 1.0)
+                            }
+                        } catch (e: Exception) {
+                            ASSEMBLY_LOGGER.error("Failed to assemble ship", e)
+                            ctx.player?.sendSystemMessage(Component.literal("Assembly failed: ${e.message ?: e.javaClass.simpleName}"))
+                            null
+                        } catch (e: AssertionError) {
+                            ASSEMBLY_LOGGER.error("Failed to assemble ship", e)
+                            ctx.player?.sendSystemMessage(Component.literal("Assembly failed: ${e.message ?: e.javaClass.simpleName}"))
+                            null
                         }
 
                         ship?.let {
